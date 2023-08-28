@@ -1,0 +1,44 @@
+name: Build and Push
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  # Change these values if you have forked it for your own works
+  # Use Lowercase vaue of your Username
+  GITHUB_USERNAME: LMAO-armv8
+  GITHUB_EMAIL: chaitanya4g9@sasi.ac.in
+
+  GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+  # Image name and tag. MUST be lowercase
+  IMAGE_NAME: docker
+
+jobs:
+  arch:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_TAG: ubuntu
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configuring git
+        run: |
+          git config --global user.name $GITHUB_USERNAME
+          git config --global user.email $GITHUB_EMAIL
+
+      - name: Logging in to Docker
+        run: |
+          echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_USERNAME --password-stdin
+
+      - name: Building the Image
+        run: |
+          docker build -t ghcr.io/${GITHUB_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG} -f ubuntu/Dockerfile .
+          echo -e "\033[0;32m""### Build Completed Successfully!""\033[0m"
+
+      - name: Pushing the Image
+        run: |
+          docker push ghcr.io/${GITHUB_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG}
