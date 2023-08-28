@@ -17,7 +17,7 @@ env:
   IMAGE_NAME: docker
 
 jobs:
-  arch:
+  ubuntu:
     runs-on: ubuntu-latest
     env:
       IMAGE_TAG: ubuntu
