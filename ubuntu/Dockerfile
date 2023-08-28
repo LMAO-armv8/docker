@@ -13,6 +13,7 @@ RUN rm -rf $(< /tmp/remove)
 
 # Copy Scripts
 COPY ./scripts /tmp/scripts/
+COPY ./common/rootfs /
 
 # Install Packages
 COPY ./ubuntu/install_packages.sh /tmp/
