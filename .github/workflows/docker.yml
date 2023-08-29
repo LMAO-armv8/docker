@@ -27,10 +27,10 @@ jobs:
         
       - name: Enable debug logging
         run: |
-          echo "Debug: $GITHUB_TOKEN"
-          echo "Debug: $GITHUB_USERNAME"
-          echo "Debug: $IMAGE_NAME"
-          echo "Debug: $IMAGE_TAG"
+          echo $GITHUB_TOKEN
+          echo $GITHUB_USERNAME
+          echo $IMAGE_NAME
+          echo $IMAGE_TAG
       
       - name: Configuring git
         run: |
