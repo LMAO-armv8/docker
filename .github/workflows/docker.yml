@@ -42,3 +42,6 @@ jobs:
       - name: Pushing the Image
         run: |
           docker push ghcr.io/${GITHUB_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG}
+    
+      - name: Log out from Docker
+        run: docker logout ghcr.io
