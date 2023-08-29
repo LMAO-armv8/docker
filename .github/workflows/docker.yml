@@ -13,6 +13,7 @@ env:
   GITHUB_EMAIL: chaitanya4g9@sasi.ac.in
 
   GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+  echo "Debug: $GITHUB_TOKEN"
   # Image name and tag. MUST be lowercase
   IMAGE_NAME: docker
 
