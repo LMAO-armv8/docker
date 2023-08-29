@@ -13,7 +13,6 @@ env:
   GITHUB_EMAIL: chaitanya4g9@sasi.ac.in
 
   GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-  echo "Debug: $GITHUB_TOKEN"
   # Image name and tag. MUST be lowercase
   IMAGE_NAME: docker
 
@@ -25,7 +24,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-
+        
+      - name: Enable debug logging
+        run: |
+          echo "Debug: $GITHUB_TOKEN"
+          echo "Debug: $GITHUB_USERNAME"
+          echo "Debug: $IMAGE_NAME"
+          echo "Debug: $IMAGE_TAG"
+      
       - name: Configuring git
         run: |
           git config --global user.name $GITHUB_USERNAME
