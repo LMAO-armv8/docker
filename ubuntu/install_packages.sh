@@ -3,15 +3,24 @@
 sed -i 's/# \(.*multiverse$\)/\1/g' /etc/apt/sources.list
 echo "deb-src http://old-releases.ubuntu.com/ubuntu disco main" | tee -a /etc/apt/sources.list
 echo "deb-src http://old-releases.ubuntu.com/ubuntu disco-updates main" | tee -a /etc/apt/sources.list
+export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get -y upgrade
-apt-get build-dep linux linux-image-$(uname -r)
+apt-get -y install --no-install-recommends apt-utils dialog 2>&1
 apt-get install -y build-essential software-properties-common
-apt-get install python
-apt-get install python3.12-venv
+apt-get install -y python3 python-is-python3 pip
 
-python3.12 -m venv myenv
-source myenv/bin/activate
+python --version
+pip --version
+
+apt-get install -y python3.12-venv
+python -v venv .venv
+source .venv/bin/activate
+pip list
+
+
+# python3.12 -m venv myenv
+# source myenv/bin/activate
 
 
 
