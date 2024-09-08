@@ -8,8 +8,8 @@ USER root
 WORKDIR /root
 
 # Remove Files before copying the Rootfs
-COPY ./ubuntu/remove /tmp/
-RUN rm -rf $(< /tmp/remove)
+# COPY ./ubuntu/remove /tmp/
+# RUN rm -rf $(< /tmp/remove)
 
 # Copy Scripts
 # COPY ./common/rootfs /
