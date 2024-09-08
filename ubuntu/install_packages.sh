@@ -1,22 +1,26 @@
 #!/bin/bash
 
-sed -i 's/# \(.*multiverse$\)/\1/g' /etc/apt/sources.list
-echo "deb-src http://old-releases.ubuntu.com/ubuntu disco main" | tee -a /etc/apt/sources.list
-echo "deb-src http://old-releases.ubuntu.com/ubuntu disco-updates main" | tee -a /etc/apt/sources.list
+sudo sed -i 's/# \(.*multiverse$\)/\1/g' /etc/apt/sources.list
+sudo echo "deb-src http://old-releases.ubuntu.com/ubuntu disco main" | tee -a /etc/apt/sources.list
+sudo echo "deb-src http://old-releases.ubuntu.com/ubuntu disco-updates main" | tee -a /etc/apt/sources.list
 export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get -y upgrade
-apt-get -y install --no-install-recommends apt-utils dialog 2>&1
-apt-get install -y build-essential software-properties-common
-apt-get install -y python3 python-is-python3 pip
+sudo apt-get update
+sudo apt-get -y upgrade
+sudo apt-get -y install --no-install-recommends apt-utils dialog 2>&1
+sudo apt-get install -y build-essential software-properties-common
+sudo apt-get install -y python3 python-is-python3 pip
 
 python --version
 pip --version
 
-apt-get install -y python3.12-venv
-python -v venv .venv
-source .venv/bin/activate
-pip list
+mkdir -p ~/miniconda3
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
+bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
+rm ~/miniconda3/miniconda.sh
+~/miniconda3/bin/conda init bash
+~/miniconda3/bin/conda init zsh
+source ~/.bashrc
+conda create -n myenv python=3.12 pip wheel
 
 
 # python3.12 -m venv myenv

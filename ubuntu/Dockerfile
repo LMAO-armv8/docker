@@ -2,10 +2,10 @@
 FROM ubuntu:latest
 
 # User
-USER root
+USER ubuntu
 
 # Working Directory
-WORKDIR /root
+WORKDIR /home/ubuntu
 
 # Remove Files before copying the Rootfs
 # COPY ./ubuntu/remove /tmp/
