@@ -12,7 +12,7 @@ COPY ./ubuntu/remove /tmp/
 RUN rm -rf $(< /tmp/remove)
 
 # Copy Scripts
-COPY ./common/rootfs /
+# COPY ./common/rootfs /
 
 # Install Packages
 COPY ./ubuntu/install_packages.sh /tmp/
@@ -23,7 +23,7 @@ COPY ./ubuntu/config.sh /tmp/
 RUN bash /tmp/config.sh
 
 # Remove the Scripts we used
-RUN rm -rf /tmp/{{install_packages,config}.sh,remove,packages}
+RUN rm -rf /tmp/{{install_packages,config}.sh}
 
 # docker run command
 CMD ["/sbin/init", "--log-target=journal"]
