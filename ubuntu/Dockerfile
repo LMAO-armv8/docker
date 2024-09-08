@@ -1,5 +1,5 @@
 # Base Image
-FROM ubuntu:latest
+FROM ubuntu:22.04
 
 # User
 USER root

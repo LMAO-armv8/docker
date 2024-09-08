@@ -4,10 +4,10 @@
 
 ubuntu-docker-build:
   # Use the official docker image.
-  image: docker:latest
+  image: ubuntu-latest
   stage: build
   variables:
-    DOCKER_IMAGE: "$CI_REGISTRY_IMAGE:arch"
+    DOCKER_IMAGE: "$CI_REGISTRY_IMAGE:ubuntu"
   services:
     - docker:dind
   before_script:
