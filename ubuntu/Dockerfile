@@ -35,5 +35,8 @@ USER root
 # Remove the Scripts we used
 RUN rm -rf /tmp/install_packages.sh /tmp/config.sh /tmp/setup_env.sh
 
+# Change to Normal User
+USER ubuntu
+
 # Default command
 CMD ["/sbin/init", "--log-target=journal"]
