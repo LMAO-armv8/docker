@@ -2,7 +2,7 @@
 FROM ubuntu:latest
 
 # User
-USER ubuntu
+USER root
 
 # Working Directory
 WORKDIR /home/ubuntu

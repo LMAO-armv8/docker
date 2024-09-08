@@ -1,25 +1,25 @@
 #!/bin/bash
 
-sudo sed -i 's/# \(.*multiverse$\)/\1/g' /etc/apt/sources.list
-sudo echo "deb-src http://old-releases.ubuntu.com/ubuntu disco main" | tee -a /etc/apt/sources.list
-sudo echo "deb-src http://old-releases.ubuntu.com/ubuntu disco-updates main" | tee -a /etc/apt/sources.list
+sed -i 's/# \(.*multiverse$\)/\1/g' /etc/apt/sources.list
+echo "deb-src http://old-releases.ubuntu.com/ubuntu disco main" | tee -a /etc/apt/sources.list
+echo "deb-src http://old-releases.ubuntu.com/ubuntu disco-updates main" | tee -a /etc/apt/sources.list
 export DEBIAN_FRONTEND=noninteractive
-sudo apt-get update
-sudo apt-get -y upgrade
-sudo apt-get -y install --no-install-recommends apt-utils dialog 2>&1
-sudo apt-get install -y build-essential software-properties-common
-sudo apt-get install -y python3 python-is-python3 pip
+apt-get update
+apt-get -y upgrade
+apt-get -y install --no-install-recommends apt-utils dialog 2>&1
+apt-get install -y build-essential software-properties-common
+apt-get install -y python3 python-is-python3 pip
 
 python --version
 pip --version
 
-mkdir -p ~/miniconda3
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
-bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
-rm ~/miniconda3/miniconda.sh
-~/miniconda3/bin/conda init bash
-~/miniconda3/bin/conda init zsh
-source ~/.bashrc
+mkdir -p miniconda3
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda3/miniconda.sh
+bash miniconda3/miniconda.sh -b -u -p miniconda3
+rm miniconda3/miniconda.sh
+miniconda3/bin/conda init bash
+miniconda3/bin/conda init zsh
+source /home/ubuntu/.bashrc
 conda create -n myenv python=3.12 pip wheel
 
 
