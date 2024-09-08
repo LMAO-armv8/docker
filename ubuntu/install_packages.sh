@@ -8,42 +8,8 @@ apt-get update
 apt-get -y upgrade
 apt-get -y install --no-install-recommends apt-utils dialog 2>&1
 apt-get install -y build-essential software-properties-common
-apt-get install -y python3 python-is-python3 pip
+apt-get install -y python3 python-is-python3 pip wget
 
 python --version
 pip --version
-
-mkdir -p miniconda3
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda3/miniconda.sh
-bash miniconda3/miniconda.sh -b -u -p miniconda3
-rm miniconda3/miniconda.sh
-miniconda3/bin/conda init bash
-miniconda3/bin/conda init zsh
-source /home/ubuntu/.bashrc
-conda create -n myenv python=3.12 pip wheel
-
-
-# python3.12 -m venv myenv
-# source myenv/bin/activate
-
-
-
-
-# sudo apt update
-# sudo apt install apt-transport-https ca-certificates curl software-properties-common
-
-
-# curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-
-
-# echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-# sudo apt update
-# sudo apt install docker-ce docker-ce-cli containerd.io
-
-# sudo systemctl status docker
-# docker --version
-
-# sudo groupadd docker
-# sudo usermod -aG docker $USER
-# newgrp docker
+whoami
