@@ -1,19 +1,6 @@
 # Base Image
 FROM ubuntu/python:3.12-24.04_stable
 
-# User
-USER root
-
-# Working Directory
-WORKDIR /root
-
-# Remove Files before copying the Rootfs
-# COPY ./ubuntu/remove /tmp/
-# RUN rm -rf $(< /tmp/remove)
-
-# Copy Scripts
-# COPY ./common/rootfs /
-
 # Install Packages
 COPY ./ubuntu/install_packages.sh /tmp/
 RUN bash /tmp/install_packages.sh
