@@ -1,15 +1,48 @@
 #!/bin/bash
 
-sed -i 's/# \(.*multiverse$\)/\1/g' /etc/apt/sources.list
-echo "deb-src http://old-releases.ubuntu.com/ubuntu disco main" | tee -a /etc/apt/sources.list
-echo "deb-src http://old-releases.ubuntu.com/ubuntu disco-updates main" | tee -a /etc/apt/sources.list
-export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get -y upgrade
-apt-get -y install --no-install-recommends apt-utils dialog 2>&1
-apt-get install -y build-essential software-properties-common
-apt-get install -y python3 python-is-python3 pip wget
+apt-get update && apt-get upgrade -y
 
-python --version
-pip --version
-whoami
+apt-get install -y \
+    curl \
+    wget \
+    git \
+    unzip \
+    zip \
+    nano \
+    vim \
+    htop \
+    jq \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    software-properties-common \
+    apt-transport-https \
+    build-essential \
+    ufw \
+    fail2ban
+
+# Docker
+install -m 0755 -d /etc/apt/keyrings
+
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  -o /etc/apt/keyrings/docker.asc
+
+chmod a+r /etc/apt/keyrings/docker.asc
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) \
+  signed-by=/etc/apt/keyrings/docker.asc] \
+  https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  > /etc/apt/sources.list.d/docker.list
+
+apt-get update
+
+apt-get install -y \
+    docker-ce \
+    docker-ce-cli \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-compose-plugin
+
+systemctl enable docker
