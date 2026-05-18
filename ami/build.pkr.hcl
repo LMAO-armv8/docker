@@ -18,7 +18,7 @@ locals {
 
 source "amazon-ebs" "ubuntu-prod" {
   ami_name        = "prod-lightsail-${local.timestamp}"
-  ami_description = "Ubuntu 24.04 — Node.js, Docker, MongoDB, Nginx, Supabase-ready"
+  ami_description = "Ubuntu 24.04 - Node.js, Docker, MongoDB, Nginx, Supabase-ready"
   instance_type   = "t3.small"
   region          = var.region
 
