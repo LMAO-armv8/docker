@@ -1,5 +1,10 @@
 #!/bin/bash
 
-# TimeZone Configuration
-export TZ="Asia/Kolkata"
-ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime
+# Timezone
+timedatectl set-timezone Asia/Kolkata
+
+# Create deploy user
+useradd -m -s /bin/bash ubuntu || true
+
+# Docker permissions
+usermod -aG docker ubuntu
