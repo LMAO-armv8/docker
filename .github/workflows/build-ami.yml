@@ -1,0 +1,72 @@
+name: Build Lightsail AMI
+
+on:
+  push:
+    branches:
+      - project2
+    paths:
+      - 'ami/**'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  build-ami:
+    name: Build AMI with Packer
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@main
+        with:
+          version: latest
+
+      - name: Packer Init
+        working-directory: ami
+        run: packer init build.pkr.hcl
+
+      - name: Packer Validate
+        working-directory: ami
+        run: packer validate build.pkr.hcl
+
+      - name: Packer Build
+        working-directory: ami
+        run: packer build -color=false build.pkr.hcl
+        env:
+          PKR_VAR_region: ${{ env.AWS_REGION }}
+
+      - name: Extract AMI ID from manifest
+        id: ami
+        run: |
+          AMI_ID=$(jq -r '.builds[-1].artifact_id' ami/manifest.json | cut -d: -f2)
+          echo "ami_id=$AMI_ID" >> $GITHUB_OUTPUT
+          echo "AMI ID: $AMI_ID"
+
+      - name: Share AMI with Lightsail
+        run: |
+          aws ec2 modify-image-attribute \
+            --image-id ${{ steps.ami.outputs.ami_id }} \
+            --region ${{ env.AWS_REGION }} \
+            --launch-permission "Add=[{UserId=451133561403}]"
+
+      - name: Job Summary
+        run: |
+          echo "### AMI Build Complete 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "| Key | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| AMI ID | \`${{ steps.ami.outputs.ami_id }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Region | \`${{ env.AWS_REGION }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Built at | \`$(date -u)\` |" >> $GITHUB_STEP_SUMMARY
