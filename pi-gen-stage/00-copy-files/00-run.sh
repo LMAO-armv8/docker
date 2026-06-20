@@ -7,6 +7,9 @@
 install -d "${ROOTFS_DIR}/opt/smarttv-builder"
 cp -r files/scripts "${ROOTFS_DIR}/opt/smarttv-builder/scripts"
 cp -r files/config "${ROOTFS_DIR}/opt/smarttv-builder/config"
+if [ -d files/addons ]; then
+  cp -r files/addons "${ROOTFS_DIR}/opt/smarttv-builder/addons"
+fi
 
 # scripts are checked out without the executable bit on some checkouts/OSes
 chmod +x "${ROOTFS_DIR}"/opt/smarttv-builder/scripts/*.sh

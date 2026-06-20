@@ -1,0 +1,47 @@
+# Smart TV Retro Plymouth script theme (Pi 1 friendly — no OpenGL)
+
+Window.SetBackgroundTopColor(0.10, 0.16, 0.22);
+Window.SetBackgroundBottomColor(0.05, 0.08, 0.12);
+
+logo_image = Image("logo.png");
+spinner_images = [];
+for (i = 0; i < 8; i = i + 1)
+    spinner_images[i] = Image("spinner-" + i + ".png");
+
+fun refresh_callback ()
+{
+    spinner_index = (spinner_index + 1) % 8;
+}
+
+Plymouth.SetRefreshFunction(refresh_callback);
+
+spinner_index = 0;
+
+fun dialog_setup ()
+{
+    logo_sprite = Sprite(logo_image);
+    logo_sprite.SetX(Window.GetWidth() / 2 - logo_image.GetWidth() / 2);
+    logo_sprite.SetY(Window.GetHeight() / 2 - logo_image.GetHeight() / 2 - 40);
+    logo_sprite.SetOpacity(1);
+
+    spinner_sprite = Sprite(spinner_images[0]);
+    spinner_sprite.SetX(Window.GetWidth() / 2 - spinner_images[0].GetWidth() / 2);
+    spinner_sprite.SetY(Window.GetHeight() / 2 + 60);
+
+    message_sprite = Sprite(Text("Starting Smart TV Retro..."));
+    message_sprite.SetPosition(Window.GetWidth() / 2 - 120, Window.GetHeight() / 2 + 120, 10000);
+}
+
+fun dialog_refresh ()
+{
+    spinner_sprite.SetImage(spinner_images[spinner_index]);
+    spinner_sprite.SetX(Window.GetWidth() / 2 - spinner_images[spinner_index].GetWidth() / 2);
+    local.opacity = 0.85 + 0.15 * Math.Sin(Plymouth.GetTime() * 2);
+    logo_sprite.SetOpacity(local.opacity);
+}
+
+Plymouth.SetBootProgressFunction(fun (progress) {
+    message_sprite.SetImage(Text("Loading... " + Math.Int(progress * 100) + "%"));
+});
+
+dialog_setup();

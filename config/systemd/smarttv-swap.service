@@ -1,0 +1,13 @@
+[Unit]
+Description=Smart TV Retro — create 4GB swap on first boot
+DefaultDependencies=no
+After=local-fs.target
+Before=smarttv-network-online.service kodi.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/setup_swap.sh
+
+[Install]
+WantedBy=multi-user.target

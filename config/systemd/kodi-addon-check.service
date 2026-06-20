@@ -1,0 +1,12 @@
+[Unit]
+Description=Smart TV Retro — verify Kodi add-ons after network is up
+After=smarttv-network-online.service network-online.target
+Wants=smarttv-network-online.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/kodi_addon_check.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

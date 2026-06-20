@@ -1,4 +1,6 @@
 <favourites>
   <favourite name="Retro Games" thumb="DefaultProgram.png">System.Exec("/usr/local/bin/launch-emulationstation.sh")</favourite>
   <favourite name="YouTube" thumb="DefaultAddonVideo.png">ActivateWindow(Videos,plugin://plugin.video.youtube/,return)</favourite>
+  <favourite name="App Store" thumb="DefaultProgram.png">ActivateWindow(Programs,plugin://plugin.program.smarttvstore/,return)</favourite>
+  <favourite name="Web Browser" thumb="DefaultAddonsSearch.png">System.Exec("/usr/local/bin/launch-browser.sh")</favourite>
 </favourites>

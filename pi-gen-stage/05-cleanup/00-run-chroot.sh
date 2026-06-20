@@ -12,3 +12,7 @@ rm -rf /tmp/* /var/tmp/*
 # doesn't take up space on the image (cores/binaries it installed remain
 # under /opt/retropie).
 rm -rf /opt/retropie-setup
+
+# Installed in stage0 so apt postinst scripts do not try to start/reload
+# services (dbus, ssh, etc.) while the image is still being built.
+rm -f /usr/sbin/policy-rc.d

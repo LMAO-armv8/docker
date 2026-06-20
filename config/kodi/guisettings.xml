@@ -1,8 +1,8 @@
 <settings version="2">
   <lookandfeel>
-    <skin>skin.estuary.modv2</skin>
+    <skin>skin.arctic.zephyr.2</skin>
     <skinsettings />
-    <soundskin default="true">skin.estuary.modv2</soundskin>
+    <soundskin default="true">skin.arctic.zephyr.2</soundskin>
     <enablerssfeeds default="true">false</enablerssfeeds>
     <skinzoom default="true">0</skinzoom>
   </lookandfeel>

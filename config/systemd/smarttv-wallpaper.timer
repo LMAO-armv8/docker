@@ -1,0 +1,10 @@
+[Unit]
+Description=Smart TV Retro — wallpaper rotation timer
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

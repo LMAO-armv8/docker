@@ -1,0 +1,8 @@
+[smarttv-boot]
+Name=Smart TV Retro Boot
+Description=Smart TV Retro animated boot splash
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/smarttv-boot
+ScriptFile=/usr/share/plymouth/themes/smarttv-boot/smarttv-boot.script

@@ -99,6 +99,22 @@ jobs:
           EOF
           sed -i '/install -m 644 files\/raspi.list/a install -m 644 files/80-archive-retries "${ROOTFS_DIR}/etc/apt/apt.conf.d/80-archive-retries"' \
             pi-gen/stage0/00-configure-apt/00-run.sh
+
+          # Package postinst scripts (dbus, avahi, ssh, etc.) call invoke-rc.d
+          # during apt installs. In the build chroot there is no running init or
+          # system dbus, so "force-reload" fails and can abort dpkg. policy-rc.d
+          # tells invoke-rc.d to skip service actions for the whole build; our
+          # cleanup stage removes it before the image is exported.
+          cat > pi-gen/stage0/00-configure-apt/files/policy-rc.d <<'EOF'
+          #!/bin/sh
+          exit 101
+          EOF
+          chmod +x pi-gen/stage0/00-configure-apt/files/policy-rc.d
+          sed -i '/install -m 644 files\/raspi.list/a install -d "${ROOTFS_DIR}/usr/sbin"' \
+            pi-gen/stage0/00-configure-apt/00-run.sh
+          sed -i '/install -d "\${ROOTFS_DIR}\/usr\/sbin"/a install -m 755 files/policy-rc.d "${ROOTFS_DIR}/usr/sbin/policy-rc.d"' \
+            pi-gen/stage0/00-configure-apt/00-run.sh
+
           python3 <<'PY'
           import re
           from pathlib import Path
@@ -140,6 +156,7 @@ jobs:
           mkdir -p pi-gen/stage5-smarttv/00-copy-files/files
           cp -r scripts pi-gen/stage5-smarttv/00-copy-files/files/
           cp -r config pi-gen/stage5-smarttv/00-copy-files/files/
+          cp -r addons pi-gen/stage5-smarttv/00-copy-files/files/ 2>/dev/null || true
 
           # Make every script in our stage (and the repo scripts/ folder it
           # copies in) executable inside the chroot.

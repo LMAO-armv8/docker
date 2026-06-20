@@ -1,0 +1,9 @@
+[
+  {"id": "plugin.video.youtube", "name": "YouTube", "category": "Video"},
+  {"id": "plugin.video.themoviedb.helper", "name": "TMDb Helper", "category": "Video"},
+  {"id": "pvr.iptvsimple", "name": "IPTV Simple Client", "category": "Video"},
+  {"id": "skin.arctic.zephyr.2", "name": "Arctic Zephyr 2", "category": "Skins"},
+  {"id": "skin.estuary.modv2", "name": "Estuary MOD V2", "category": "Skins"},
+  {"id": "plugin.program.smarttvstore", "name": "App Store (refresh)", "category": "Programs"},
+  {"id": "repository.xbmc.org", "name": "Official Kodi Repo", "category": "Repositories"}
+]

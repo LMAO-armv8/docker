@@ -1,0 +1,6 @@
+[Unit]
+Description=Smart TV Retro — rotate Kodi/ES wallpapers
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/smarttv-wallpaper-rotate.sh
