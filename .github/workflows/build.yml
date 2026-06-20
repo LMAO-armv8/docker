@@ -20,11 +20,16 @@ env:
   PI_GEN_RELEASE: buster         # Debian/Raspberry Pi OS release matching that branch
 
 # A full desktop-less pi-gen build comfortably fits the free-tier 6 hour job
-# limit, but it needs more scratch disk than the default ubuntu-latest runner
-# ships with, so step 2 below reclaims space before the build starts.
+# limit, but it needs more scratch disk than the default runner ships with,
+# so step 2 below reclaims space before the build starts.
+#
+# pi-gen's default USE_QCOW2=1 mode chains stage images through qemu-nbd.
+# ubuntu-latest (24.04, kernel 6.9+) has a known NBD regression that breaks
+# stage1+ with "read error, sector 0" / missing /dev/mapper/nbd0p2. Pin to
+# ubuntu-22.04 (kernel 6.8) where NBD + qcow2 backing chains still work.
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 330
     permissions:
       contents: write
@@ -77,6 +82,10 @@ jobs:
             pi-gen/scripts/qcow2_handling
           sed -i 's|qemu-img rebase -f qcow2 -u -b \${PREV_IMG}\.qcow2|qemu-img rebase -f qcow2 -u -b ${PREV_IMG}.qcow2 -F qcow2|' \
             pi-gen/build.sh
+
+          # Explicit qcow2 format on NBD connect (required by newer qemu-utils).
+          sed -i 's|qemu-nbd --discard=unmap -c $NBD_DEV|qemu-nbd -f qcow2 --discard=unmap -c $NBD_DEV|' \
+            pi-gen/scripts/qcow2_handling
 
           # legacy.raspbian.org is reliable but can return transient "Undetermined
           # Error" fetches when stage2 pulls ~150 MB of packages through a qemu
@@ -170,6 +179,9 @@ jobs:
 
       - name: Run pi-gen build
         run: |
+          # pi-gen qcow2 stages require the nbd kernel module with partition
+          # support. Load it explicitly before build.sh starts creating images.
+          sudo modprobe nbd max_part=16
           cd pi-gen
           chmod +x build.sh
           sudo ./build.sh
