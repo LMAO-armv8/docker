@@ -146,27 +146,40 @@ jobs:
           # Lazy umount avoids infinite "target is busy" on bind-mounted /dev when
           # qemu-user-static or host systemd still holds device nodes open.
           python3 <<'PY'
+          import re
           from pathlib import Path
 
           common = Path("pi-gen/scripts/common")
           text = common.read_text()
-          old = '\t\tumount "$loc"\n'
-          new = '\t\tumount -l "$loc" 2>/dev/null || umount "$loc" 2>/dev/null || true\n'
-          if old not in text:
-              raise SystemExit("expected umount line in pi-gen/scripts/common")
-          common.write_text(text.replace(old, new, 1))
+          if 'umount -l "$loc"' not in text:
+              pat = re.compile(r'^([ \t]+)umount "\$loc"\s*$', re.MULTILINE)
+              if not pat.search(text):
+                  raise SystemExit("expected umount line in pi-gen/scripts/common")
+              text = pat.sub(
+                  r'\1umount -l "$loc" 2>/dev/null || umount "$loc" 2>/dev/null || true',
+                  text,
+                  count=1,
+              )
+              common.write_text(text)
 
           qcow2 = Path("pi-gen/scripts/qcow2_handling")
           text = qcow2.read_text()
-          old = '\t\twhile mountpoint -q "$loc" && ! umount "$loc"; do\n\t\t\tsleep 0.1\n\t\t\tdone\n'
-          new = (
-              '\t\twhile mountpoint -q "$loc"; do\n'
-              '\t\t\tumount -l "$loc" 2>/dev/null || umount "$loc" 2>/dev/null || sleep 0.1\n'
-              '\t\t\tdone\n'
-          )
-          if old not in text:
-              raise SystemExit("expected umount loop in pi-gen/scripts/qcow2_handling")
-          qcow2.write_text(text.replace(old, new, 1))
+          if 'umount -l "$loc"' not in text:
+              pat = re.compile(
+                  r'^([ \t]+)while mountpoint -q "\$loc" && ! umount "\$loc"; do\n'
+                  r'([ \t]+)sleep 0\.1\n'
+                  r'([ \t]+)done',
+                  re.MULTILINE,
+              )
+              match = pat.search(text)
+              if not match:
+                  raise SystemExit("expected umount loop in pi-gen/scripts/qcow2_handling")
+              repl = (
+                  f'{match.group(1)}while mountpoint -q "$loc"; do\n'
+                  f'{match.group(2)}umount -l "$loc" 2>/dev/null || umount "$loc" 2>/dev/null || sleep 0.1\n'
+                  f'{match.group(3)}done'
+              )
+              qcow2.write_text(pat.sub(repl, text, count=1))
           PY
 
       - name: Drop in the custom build stage
