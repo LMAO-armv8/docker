@@ -17,6 +17,9 @@
 #   BUILD_TAG=build-server-20250621-1430
 #   SKIP_APT_HOST=1
 #   KEEP_PI_GEN=1
+#   PI_GEN_CACHE=1              default: reuse qcow2 work cache (see scripts/pi-gen-cache.sh)
+#   CLEAN_PI_GEN_CACHE=1          wipe cache before building
+#   PI_GEN_CACHE_DIR=/var/cache/smarttv-pi-gen
 
 set -euo pipefail
 
@@ -25,6 +28,8 @@ PI_GEN_BRANCH="${PI_GEN_BRANCH:-buster}"
 PI_GEN_RELEASE="${PI_GEN_RELEASE:-buster}"
 PUBLISH_RELEASE="${PUBLISH_RELEASE:-0}"
 BUILD_TAG="${BUILD_TAG:-build-server-$(date +%Y%m%d-%H%M%S)}"
+PI_GEN_CACHE="${PI_GEN_CACHE:-1}"
+PI_GEN_CACHE_DIR="${PI_GEN_CACHE_DIR:-/var/cache/smarttv-pi-gen}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
@@ -209,10 +214,14 @@ if [[ "${SKIP_APT_HOST:-0}" != "1" ]]; then
 fi
 
 # --- pi-gen checkout -------------------------------------------------------
+chmod +x scripts/pi-gen-cache.sh
+if [[ "${CLEAN_PI_GEN_CACHE:-0}" == "1" ]]; then
+  scripts/pi-gen-cache.sh clean
+fi
 if [[ "${KEEP_PI_GEN:-0}" != "1" ]] || [[ ! -d pi-gen/.git ]]; then
-  rm -rf pi-gen
-  git clone --depth 1 --branch "${PI_GEN_BRANCH}" \
-    https://github.com/RPi-Distro/pi-gen.git pi-gen
+  scripts/pi-gen-cache.sh clone-pigen
+else
+  echo "Reusing existing pi-gen checkout (KEEP_PI_GEN=1)"
 fi
 
 # --- Patch pi-gen (identical to build.yml) ---------------------------------
@@ -340,7 +349,17 @@ PUBKEY_SSH_FIRST_USER=
 STAGE_LIST="stage0 stage1 stage2 stage5-smarttv"
 EOF
 
+if [[ "${PI_GEN_CACHE}" == "1" ]]; then
+  scripts/pi-gen-cache.sh prepare
+fi
+
 # --- Build -----------------------------------------------------------------
+save_pi_gen_cache() {
+  if [[ "${PI_GEN_CACHE}" == "1" ]]; then
+    scripts/pi-gen-cache.sh save || true
+  fi
+}
+trap save_pi_gen_cache EXIT
 if ! run modprobe nbd max_part=16 2>/dev/null; then
   echo "ERROR: could not load nbd kernel module (required for pi-gen qcow2)." >&2
   echo "  Cloud Shell and many containers cannot run pi-gen." >&2

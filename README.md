@@ -112,11 +112,18 @@ addons/           plugin.program.smarttvstore/
 
 ## Building the image
 
-### GitHub Actions (default)
+### GitHub Actions (self-hosted runner)
 
 Push to `main` or `raspi-smarttv-retro`, or run the workflow manually from the
 **Actions** tab. Enable **Publish a GitHub Release** on manual runs to upload
 `smarttv-retro-pi1.img.gz` to Releases.
+
+**Build cache (self-hosted):** qcow2 stage images are stored under
+`/home/github-runner/.cache/smarttv-pi-gen/`. Restarts and re-runs skip
+**stage0–stage2** (Raspberry Pi OS Lite base) when that cache is valid. When
+only `scripts/`, `config/`, or `pi-gen-stage/` change, the base is reused and
+only **stage5-smarttv** rebuilds. Use workflow dispatch **Clear pi-gen cache**
+for a full from-scratch build.
 
 ### Cloud server / VM (same pipeline as Actions)
 
