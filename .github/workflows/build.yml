@@ -78,6 +78,46 @@ jobs:
           sed -i 's|qemu-img rebase -f qcow2 -u -b \${PREV_IMG}\.qcow2|qemu-img rebase -f qcow2 -u -b ${PREV_IMG}.qcow2 -F qcow2|' \
             pi-gen/build.sh
 
+          # legacy.raspbian.org is reliable but can return transient "Undetermined
+          # Error" fetches when stage2 pulls ~150 MB of packages through a qemu
+          # chroot. Install global apt retry settings early and retry whole apt
+          # install commands if a batch still fails.
+          cat > pi-gen/stage0/00-configure-apt/files/80-archive-retries <<'EOF'
+          Acquire::Retries "10";
+          Acquire::https::Timeout "120";
+          Acquire::http::Timeout "120";
+          Acquire::Check-Valid-Until "false";
+          EOF
+          sed -i '/install -m 644 files\/raspi.list/a install -m 644 files/80-archive-retries "${ROOTFS_DIR}/etc/apt/apt.conf.d/80-archive-retries"' \
+            pi-gen/stage0/00-configure-apt/00-run.sh
+          python3 <<'PY'
+          import re
+          from pathlib import Path
+
+          build_sh = Path("pi-gen/build.sh")
+          text = build_sh.read_text()
+          pattern = re.compile(
+              r"on_chroot << EOF\n(apt-get -o APT::Acquire::Retries=3 install(?: --no-install-recommends)? -y \$PACKAGES)\nEOF"
+          )
+
+          def repl(match):
+              cmd = match.group(1).replace("Retries=3", "Retries=10")
+              return (
+                  "on_chroot << EOF\n"
+                  "for attempt in 1 2 3 4 5; do\n"
+                  f"  {cmd} && break\n"
+                  "  [ \\$attempt -eq 5 ] && exit 1\n"
+                  "  sleep 20\n"
+                  "done\n"
+                  "EOF"
+              )
+
+          text, count = pattern.subn(repl, text)
+          if count != 2:
+              raise SystemExit(f"expected to patch 2 apt install hooks in pi-gen/build.sh, got {count}")
+          build_sh.write_text(text)
+          PY
+
       - name: Drop in the custom build stage
         run: |
           # pi-gen treats every top level folder that matches stage-* (or is
