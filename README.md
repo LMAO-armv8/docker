@@ -110,6 +110,55 @@ config/           kodi/, emulationstation/, network/, systemd/, plymouth/
 addons/           plugin.program.smarttvstore/
 ```
 
+## Building the image
+
+### GitHub Actions (default)
+
+Push to `main` or `raspi-smarttv-retro`, or run the workflow manually from the
+**Actions** tab. Enable **Publish a GitHub Release** on manual runs to upload
+`smarttv-retro-pi1.img.gz` to Releases.
+
+### Cloud server / VM (same pipeline as Actions)
+
+Use [`scripts/build-server.sh`](scripts/build-server.sh) on **Ubuntu 22.04**
+(AWS Lightsail, EC2, DigitalOcean, etc.). It runs the same pi-gen steps as
+[`.github/workflows/build.yml`](.github/workflows/build.yml).
+
+**Server requirements:** 50GB+ disk, 4GB+ RAM, sudo, outbound internet.
+
+```bash
+# One-time setup
+sudo apt-get install -y git gh
+gh auth login    # needs repo + Contents: write
+
+git clone https://github.com/YOUR_USER/raspi-smarttv-retro.git
+cd raspi-smarttv-retro
+git checkout raspi-smarttv-retro
+chmod +x scripts/build-server.sh
+
+# Build only → ./smarttv-retro-pi1.img.gz in repo root (~2–4 hours)
+./scripts/build-server.sh
+
+# Build + publish to GitHub Releases (same as Actions release step)
+PUBLISH_RELEASE=1 ./scripts/build-server.sh
+
+# Faster rebuild on the same server (reuse pi-gen checkout)
+KEEP_PI_GEN=1 SKIP_APT_HOST=1 ./scripts/build-server.sh
+```
+
+**Optional environment variables:**
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `PUBLISH_RELEASE` | `0` | Set to `1` to upload `.img.gz` via `gh release create` |
+| `GITHUB_REPO` | from `git remote` | e.g. `owner/raspi-smarttv-retro` |
+| `BUILD_TAG` | `build-server-YYYYMMDD-HHMMSS` | GitHub Release tag name |
+| `KEEP_PI_GEN` | `0` | Reuse existing `pi-gen/` directory |
+| `SKIP_APT_HOST` | `0` | Skip host package install on rebuild |
+
+**Note:** Use Ubuntu **22.04** — pi-gen qcow2 + NBD is unreliable on 24.04+.
+Build under `~/` on the server, not a slow network mount.
+
 ## Customizing
 
 - Kodi skin: edit `<skin>` in `config/kodi/guisettings.xml`
