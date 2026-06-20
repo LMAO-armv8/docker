@@ -29,7 +29,7 @@ env:
 # ubuntu-22.04 (kernel 6.8) where NBD + qcow2 backing chains still work.
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: [self-hosted, Linux, X64, pi-gen]
     timeout-minutes: 330
     permissions:
       contents: write
