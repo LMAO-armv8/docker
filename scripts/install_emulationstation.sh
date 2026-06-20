@@ -3,39 +3,17 @@
 
 echo "=== [install_emulationstation] Installing EmulationStation via RetroPie-Setup ==="
 
-export DEBIAN_FRONTEND=noninteractive
-export __platform=rpi1
-export __nodialog=1
-# GitHub Actions / cloud build hosts set SUDO_USER=runner; pi-gen passes it
-# into the chroot. RetroPie must install for the image user "pi".
-export __user=pi
-export SUDO_USER=pi
+BUILDER="/opt/smarttv-builder/scripts"
+# shellcheck source=/dev/null
+source "${BUILDER}/retropie_common.sh"
 
-RP_SETUP_DIR="/opt/retropie-setup"
-THEME_DIR="/home/pi/.emulationstation/themes/es-theme-art-book-next"
+retropie_prepare_setup
 
-if [ ! -d "${RP_SETUP_DIR}" ]; then
-  apt-get update
-  apt-get install -y --no-install-recommends git dialog unzip xmlstarlet python3 build-essential cmake ca-certificates
-  git clone --depth 1 https://github.com/RetroPie/RetroPie-Setup.git "${RP_SETUP_DIR}"
-fi
-cd "${RP_SETUP_DIR}"
-chmod +x retropie_packages.sh
-
-install_module () {
-  local module="$1"
-  echo "--- retropie_packages.sh ${module} install_bin ---"
-  if ! ./retropie_packages.sh "${module}" install_bin clean; then
-    echo "WARNING: no prebuilt 'rpi1' binary for ${module}; attempting source build."
-    ./retropie_packages.sh "${module}" install_source clean \
-      || echo "WARNING: ${module} could not be installed. Continuing build without it."
-  fi
-}
-
-install_module emulationstation
-install_module runcommand
+retropie_install_module emulationstation
+retropie_install_runcommand
 
 echo "=== [install_emulationstation] Installing Art Book Next theme (steam-deck) ==="
+THEME_DIR="/home/pi/.emulationstation/themes/es-theme-art-book-next"
 install -d -o pi -g pi /home/pi/.emulationstation/themes
 if [ ! -d "${THEME_DIR}" ]; then
   git clone --depth 1 https://github.com/anthonycaccese/art-book-next-retropie.git "${THEME_DIR}" \
@@ -46,13 +24,11 @@ if [ -f "${THEME_DIR}/theme.xml" ]; then
   sed -i 's|<colorScheme>.*</colorScheme>|<colorScheme>steam-deck</colorScheme>|' "${THEME_DIR}/theme.xml" \
     || sed -i 's|<themeVersion>.*</themeVersion>|<themeVersion>steam-deck</themeVersion>|' "${THEME_DIR}/theme.xml" \
     || true
-  # Ensure steam-deck color scheme in theme.xml
   if ! grep -q 'steam-deck' "${THEME_DIR}/theme.xml"; then
     sed -i '0,/<\/theme>/s|<theme>|<theme>\n  <colorScheme>steam-deck</colorScheme>|' "${THEME_DIR}/theme.xml" 2>/dev/null || true
   fi
 fi
 
-# Carbon fallback theme
 if [ ! -d /home/pi/.emulationstation/themes/es-theme-carbon ]; then
   git clone --depth 1 https://github.com/RetroPie/es-theme-carbon.git /home/pi/.emulationstation/themes/es-theme-carbon \
     || true
