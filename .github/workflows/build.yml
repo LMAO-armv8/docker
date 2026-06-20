@@ -58,6 +58,18 @@ jobs:
         run: |
           git clone --depth 1 --branch "${PI_GEN_BRANCH}" https://github.com/RPi-Distro/pi-gen.git pi-gen
 
+      - name: Patch pi-gen for archived Raspbian Buster mirrors
+        run: |
+          # Raspbian Buster was removed from raspbian.raspberrypi.org in late
+          # 2025. The pi-gen buster branch still points at that dead URL for
+          # debootstrap and the initial apt sources, which fails stage0 with:
+          #   E: Failed getting release file .../dists/buster/Release
+          # legacy.raspbian.org is the official archive mirror; archive.raspberrypi.org
+          # (used for Pi-specific packages like Kodi) is still live and unchanged.
+          sed -i 's|http://raspbian.raspberrypi.org/raspbian/|https://legacy.raspbian.org/raspbian/|g' \
+            pi-gen/stage0/prerun.sh \
+            pi-gen/stage0/00-configure-apt/files/sources.list
+
       - name: Drop in the custom build stage
         run: |
           # pi-gen treats every top level folder that matches stage-* (or is
