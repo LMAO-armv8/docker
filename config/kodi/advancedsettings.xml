@@ -1,0 +1,31 @@
+<advancedsettings>
+  <!-- Pi 1 has 256-512MB RAM total (shared with the GPU via gpu_mem in
+       config.txt), so we keep Kodi's playback cache modest rather than
+       using desktop-class defaults. -->
+  <cache>
+    <memorysize>20971520</memorysize> <!-- 20MB -->
+    <buffermode>1</buffermode>
+  </cache>
+
+  <network>
+    <curlclienttimeout>10</curlclienttimeout>
+    <curllowspeedtime>10</curllowspeedtime>
+  </network>
+
+  <video>
+    <!-- ARM11 (ARMv6) has no hardware-accelerated GUI compositing headroom
+         to spare, so keep on-screen-display and thumbnail generation light. -->
+    <ignoresecondsatstart>3</ignoresecondsatstart>
+    <generatethumbnails>false</generatethumbnails>
+  </video>
+
+  <musiclibrary>
+    <backgroundupdate>false</backgroundupdate>
+  </musiclibrary>
+
+  <videolibrary>
+    <backgroundupdate>false</backgroundupdate>
+  </videolibrary>
+
+  <loglevel hide="true">1</loglevel>
+</advancedsettings>

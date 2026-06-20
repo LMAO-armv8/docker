@@ -1,0 +1,38 @@
+<settings version="2">
+  <lookandfeel>
+    <skin>skin.estuary.modv2</skin>
+    <skinsettings />
+    <soundskin default="true">skin.estuary.modv2</soundskin>
+    <enablerssfeeds default="true">false</enablerssfeeds>
+    <skinzoom default="true">0</skinzoom>
+  </lookandfeel>
+  <general>
+    <addonupdatemode default="true">0</addonupdatemode>
+  </general>
+  <screensaver>
+    <mode default="true"></mode>
+    <usemusicvisinstead default="true">false</usemusicvisinstead>
+    <time>30</time>
+  </screensaver>
+  <videoscreen>
+    <screen default="true">0</screen>
+    <resolution default="true">16</resolution>
+    <fakefullscreen default="true">false</fakefullscreen>
+    <blankdisplays default="true">false</blankdisplays>
+  </videoscreen>
+  <locale>
+    <language>resource.language.en_gb</language>
+    <country default="true">USA</country>
+  </locale>
+  <masterlock>
+    <startuplock default="true">false</startuplock>
+  </masterlock>
+  <network>
+    <usehttpproxy default="true">false</usehttpproxy>
+  </network>
+  <services>
+    <esenabled default="true">true</esenabled>
+    <esallinterfaces default="true">false</esallinterfaces>
+    <webserver default="true">false</webserver>
+  </services>
+</settings>

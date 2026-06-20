@@ -1,0 +1,161 @@
+name: Build Raspberry Pi Smart TV / Retro image
+
+# Triggers:
+#   - push to main (auto build + publish a release)
+#   - manual run from the Actions tab (workflow_dispatch), useful for testing
+#     a branch without creating a release
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publish a GitHub Release for this run"
+        type: boolean
+        default: false
+
+env:
+  IMG_NAME: smarttv-retro-pi1
+  PI_GEN_BRANCH: buster          # last pi-gen branch with first-class ARMv6 (Pi 1) support
+  PI_GEN_RELEASE: buster         # Debian/Raspberry Pi OS release matching that branch
+
+# A full desktop-less pi-gen build comfortably fits the free-tier 6 hour job
+# limit, but it needs more scratch disk than the default ubuntu-latest runner
+# ships with, so step 2 below reclaims space before the build starts.
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v4
+
+      - name: Free up disk space on the runner
+        run: |
+          echo "Disk space before cleanup:"
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache \
+            /usr/local/.ghcup "$AGENT_TOOLSDIRECTORY" /usr/lib/jvm /opt/az 2>/dev/null || true
+          echo "Disk space after cleanup:"
+          df -h /
+
+      - name: Install pi-gen host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            coreutils quilt parted qemu-user-static binfmt-support debootstrap \
+            zerofree zip dosfstools libarchive-tools libcap2-bin grep rsync \
+            xz-utils file xxd kmod git curl bc qemu-utils kpartx gpg pigz
+          # qemu-user-static's postinst normally registers the ARM binfmt
+          # handler automatically, but re-asserting this is cheap insurance:
+          # without a working registration, every chroot command pi-gen runs
+          # against the ARMv6 rootfs fails with "exec format error".
+          sudo update-binfmts --enable qemu-arm
+
+      - name: Clone pi-gen (buster branch, ARMv6/armhf compatible)
+        run: |
+          git clone --depth 1 --branch "${PI_GEN_BRANCH}" https://github.com/RPi-Distro/pi-gen.git pi-gen
+
+      - name: Drop in the custom build stage
+        run: |
+          # pi-gen treats every top level folder that matches stage-* (or is
+          # explicitly listed in config's STAGE_LIST) as a stage. We add ours
+          # as stage5 so it runs after pi-gen's stock stage0-stage2 (which
+          # produce the minimal Raspberry Pi OS Lite base image).
+          cp -r pi-gen-stage pi-gen/stage5-smarttv
+
+          # Our 00-copy-files step pulls in this repo's scripts/ and config/
+          # folders so later steps in the stage can run them inside the chroot.
+          mkdir -p pi-gen/stage5-smarttv/00-copy-files/files
+          cp -r scripts pi-gen/stage5-smarttv/00-copy-files/files/
+          cp -r config pi-gen/stage5-smarttv/00-copy-files/files/
+
+          # Make every script in our stage (and the repo scripts/ folder it
+          # copies in) executable inside the chroot.
+          find pi-gen/stage5-smarttv -name "*.sh" -exec chmod +x {} \;
+          chmod +x scripts/*.sh
+
+          # We only want stage0 (bootstrap), stage1 (minimal system),
+          # stage2 (lite image, used purely as our base rootfs) and our own
+          # stage5. We skip stage3/stage4 (the desktop environment) entirely
+          # since this image boots straight into Kodi and never needs one.
+          touch pi-gen/stage3/SKIP pi-gen/stage4/SKIP
+
+          # Only our final stage should export a .img - stage2 builds a
+          # valid Raspberry Pi OS Lite image by default, which we don't
+          # want as a second/competing build artifact.
+          touch pi-gen/stage2/SKIP_IMAGES
+          # (pi-gen/stage5-smarttv/EXPORT_IMAGE, included in pi-gen-stage/
+          # in this repo, is what marks our stage as the one to export.)
+
+      - name: Write pi-gen config
+        run: |
+          cat > pi-gen/config <<EOF
+          IMG_NAME=${IMG_NAME}
+          RELEASE=${PI_GEN_RELEASE}
+          DEPLOY_COMPRESSION=none
+          LOCALE_DEFAULT=en_GB.UTF-8
+          TARGET_HOSTNAME=smarttv-retropi
+          KEYBOARD_KEYMAP=us
+          KEYBOARD_LAYOUT="English (US)"
+          TIMEZONE_DEFAULT=Etc/UTC
+          FIRST_USER_NAME=pi
+          FIRST_USER_PASS=raspberry
+          ENABLE_SSH=1
+          PUBKEY_SSH_FIRST_USER=
+          STAGE_LIST="stage0 stage1 stage2 stage5-smarttv"
+          EOF
+
+      - name: Run pi-gen build
+        run: |
+          cd pi-gen
+          chmod +x build.sh
+          sudo ./build.sh
+
+      - name: Locate build output
+        id: locate
+        run: |
+          DEPLOY_DIR="pi-gen/deploy"
+          ls -lh "${DEPLOY_DIR}"
+          IMG_FILE=$(find "${DEPLOY_DIR}" -maxdepth 1 -iname "*.img" | head -n1)
+          if [ -z "${IMG_FILE}" ]; then
+            echo "No .img produced by pi-gen, check the build log above." >&2
+            exit 1
+          fi
+          echo "img_file=${IMG_FILE}" >> "$GITHUB_OUTPUT"
+
+      - name: Compress image to .img.gz
+        run: |
+          IMG_FILE="${{ steps.locate.outputs.img_file }}"
+          # pi-gen's own zerofree stage step already zeroes free blocks, so
+          # we just need to gzip the result. -9 is slow but this only runs
+          # once per release and keeps the artifact as small as possible.
+          gzip -9 -c "${IMG_FILE}" > "${IMG_NAME}.img.gz"
+          ls -lh "${IMG_NAME}.img.gz"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.IMG_NAME }}-img-gz
+          path: ${{ env.IMG_NAME }}.img.gz
+          retention-days: 14
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Smart TV / Retro Pi 1 image - build ${{ github.run_number }}
+          body: |
+            Automated pi-gen build of the Smart TV + Retro Gaming image for
+            Raspberry Pi 1 Model B/B+.
+
+            Flash `${{ env.IMG_NAME }}.img.gz` with Raspberry Pi Imager,
+            balenaEtcher, or `dd` (see README.md for full instructions).
+
+            Default login: user `pi`, password `raspberry`. Change this on
+            first boot.
+          files: ${{ env.IMG_NAME }}.img.gz
+          generate_release_notes: false

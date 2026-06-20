@@ -1,0 +1,17 @@
+# Build output (produced locally if anyone runs pi-gen outside of CI)
+pi-gen/
+*.img
+*.img.gz
+*.img.xz
+*.zip
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
+.idea/
+
+# Logs
+*.log
