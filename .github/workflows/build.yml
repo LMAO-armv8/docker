@@ -6,7 +6,7 @@ name: Build Raspberry Pi Smart TV / Retro image
 #     a branch without creating a release
 on:
   push:
-    branches: [ main ]
+    branches: [ main, raspi-smarttv-retro ]
   workflow_dispatch:
     inputs:
       publish_release:
