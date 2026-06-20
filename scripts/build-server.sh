@@ -162,7 +162,7 @@ enable_qemu_arm_binfmt() {
     fi
   done
 
-  if run python3 - "${qemu_arm}" <<'PY'
+  run python3 - "${qemu_arm}" <<'PY' || true
 import sys
 qemu = sys.argv[1]
 prefix = (
@@ -180,17 +180,13 @@ for flags in ("F", "OC", "CF"):
         continue
 sys.exit(1)
 PY
-  then
-      echo "ARM binfmt enabled via manual register."
-      return 0
-    fi
-  else
-    echo "NOTE: manual binfmt register failed (see above); checking existing entries..." >&2
-  fi
 
   if binfmt_arm_ok; then
+    echo "ARM binfmt enabled via manual register."
     return 0
   fi
+
+  echo "NOTE: manual binfmt register failed; checking existing entries..." >&2
 
   echo "ERROR: could not enable ARM binfmt. pi-gen chroot will fail with 'exec format error'." >&2
   echo "  Debug: ls -la /proc/sys/fs/binfmt_misc/ && update-binfmts --display" >&2
