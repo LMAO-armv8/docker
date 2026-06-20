@@ -58,7 +58,7 @@ jobs:
         run: |
           git clone --depth 1 --branch "${PI_GEN_BRANCH}" https://github.com/RPi-Distro/pi-gen.git pi-gen
 
-      - name: Patch pi-gen for archived Raspbian Buster mirrors
+      - name: Patch pi-gen for GitHub Actions compatibility
         run: |
           # Raspbian Buster was removed from raspbian.raspberrypi.org in late
           # 2025. The pi-gen buster branch still points at that dead URL for
@@ -69,6 +69,14 @@ jobs:
           sed -i 's|http://raspbian.raspberrypi.org/raspbian/|https://legacy.raspbian.org/raspbian/|g' \
             pi-gen/stage0/prerun.sh \
             pi-gen/stage0/00-configure-apt/files/sources.list
+
+          # qemu-utils on ubuntu-latest now rejects qcow2 overlays created without
+          # an explicit backing format ("Backing file specified without backing
+          # format"), which breaks stage1+ when pi-gen chains stage images.
+          sed -i 's|backing_file=\${WORK_DIR}/image-\${PREV_STAGE}\.qcow2|backing_file=${WORK_DIR}/image-${PREV_STAGE}.qcow2,backing_fmt=qcow2|' \
+            pi-gen/scripts/qcow2_handling
+          sed -i 's|qemu-img rebase -f qcow2 -u -b \${PREV_IMG}\.qcow2|qemu-img rebase -f qcow2 -u -b ${PREV_IMG}.qcow2 -F qcow2|' \
+            pi-gen/build.sh
 
       - name: Drop in the custom build stage
         run: |
