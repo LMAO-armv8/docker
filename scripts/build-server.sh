@@ -49,15 +49,129 @@ run() {
   fi
 }
 
+preflight_host() {
+  local ubuntu_ver free_gb
+  ubuntu_ver=""
+  if [[ -f /etc/os-release ]]; then
+    # shellcheck source=/dev/null
+    . /etc/os-release
+    ubuntu_ver="${VERSION_ID:-unknown}"
+  fi
+
+  free_gb="$(df -BG / | awk 'NR==2 {gsub(/G/,"",$4); print $4}')"
+
+  echo "=== Host preflight ==="
+  echo "OS: ${NAME:-Linux} ${ubuntu_ver}"
+  echo "Free disk: ${free_gb}GB on /"
+
+  if [[ -n "${CLOUD_SHELL:-}" ]] || [[ "${HOSTNAME:-}" == *cloudshell* ]]; then
+    echo ""
+    echo "WARNING: Google Cloud Shell is not supported for pi-gen builds." >&2
+    echo "  - Very limited disk (~5GB home, ephemeral)" >&2
+    echo "  - NBD kernel module usually unavailable" >&2
+    echo "  - Ubuntu 24.04 binfmt differs from GitHub Actions (22.04)" >&2
+    echo "  Use a Compute Engine VM with Ubuntu 22.04, 50GB+ disk instead." >&2
+    echo ""
+    if [[ "${ALLOW_UNSUPPORTED_HOST:-0}" != "1" ]]; then
+      echo "Set ALLOW_UNSUPPORTED_HOST=1 to try anyway (likely to fail)." >&2
+      exit 1
+    fi
+  fi
+
+  if [[ "${ubuntu_ver}" != "22.04" ]] && [[ "${ALLOW_UNSUPPORTED_HOST:-0}" != "1" ]]; then
+    echo ""
+    echo "WARNING: Ubuntu ${ubuntu_ver} detected. GitHub Actions uses 22.04 because" >&2
+    echo "  pi-gen qcow2 + NBD is unreliable on 24.04+. Strongly recommend 22.04." >&2
+    echo "  Set ALLOW_UNSUPPORTED_HOST=1 to continue on this host anyway." >&2
+    exit 1
+  fi
+
+  if [[ "${free_gb}" -lt 40 ]] && [[ "${ALLOW_UNSUPPORTED_HOST:-0}" != "1" ]]; then
+    echo "ERROR: need at least 40GB free on / (have ${free_gb}GB)." >&2
+    exit 1
+  fi
+}
+
+# Register ARM binfmt for pi-gen chroots. Ubuntu 22.04 uses update-binfmts;
+# Ubuntu 24.04 moved to systemd-binfmt + /usr/lib/binfmt.d/*.conf.
+enable_qemu_arm_binfmt() {
+  local qemu_arm
+  qemu_arm="$(command -v qemu-arm-static || true)"
+  if [[ -z "${qemu_arm}" ]]; then
+    echo "ERROR: qemu-arm-static not found after apt install." >&2
+    return 1
+  fi
+
+  binfmt_arm_ok() {
+    for entry in /proc/sys/fs/binfmt_misc/qemu-arm /proc/sys/fs/binfmt_misc/arm; do
+      if [[ -f "${entry}" ]] && grep -q '^enabled' "${entry}" 2>/dev/null; then
+        return 0
+      fi
+    done
+    return 1
+  }
+
+  if binfmt_arm_ok; then
+    echo "ARM binfmt already enabled."
+    return 0
+  fi
+
+  echo "=== Enabling ARM binfmt (qemu-arm-static) ==="
+
+  # Ubuntu 22.04 path
+  run update-binfmts --importdir /usr/share/binfmts 2>/dev/null || true
+  if run update-binfmts --enable qemu-arm 2>/dev/null; then
+    binfmt_arm_ok && return 0
+  fi
+
+  # Ubuntu 24.04+ path: systemd-binfmt + binfmt.d configs
+  run mkdir -p /etc/binfmt.d
+  for conf in /usr/lib/binfmt.d/qemu-arm*.conf; do
+    [[ -f "${conf}" ]] || continue
+    run ln -sf "${conf}" "/etc/binfmt.d/$(basename "${conf}")"
+  done
+  run systemctl restart systemd-binfmt 2>/dev/null || true
+  sleep 1
+  if binfmt_arm_ok; then
+    echo "ARM binfmt enabled via systemd-binfmt."
+    return 0
+  fi
+
+  # Manual registration with fix-binary (F) — required for pi-gen chroots.
+  run mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
+  if [[ -f /proc/sys/fs/binfmt_misc/qemu-arm ]]; then
+    echo -1 | run tee /proc/sys/fs/binfmt_misc/qemu-arm >/dev/null 2>&1 || true
+  fi
+  if [[ -f /proc/sys/fs/binfmt_misc/arm ]]; then
+    echo -1 | run tee /proc/sys/fs/binfmt_misc/arm >/dev/null 2>&1 || true
+  fi
+
+  printf '%s\n' \
+    ":qemu-arm:M::\\x7fELF\\x01\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x28\\x00:\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xfe\\xff\\xff:${qemu_arm}:F" \
+    | run tee /proc/sys/fs/binfmt_misc/register >/dev/null
+
+  if binfmt_arm_ok; then
+    echo "ARM binfmt enabled via manual /proc/sys/fs/binfmt_misc/register."
+    return 0
+  fi
+
+  echo "ERROR: could not enable ARM binfmt. pi-gen chroot will fail with 'exec format error'." >&2
+  return 1
+}
+
+preflight_host
+
 # --- Host dependencies (same as .github/workflows/build.yml) ---------------
 if [[ "${SKIP_APT_HOST:-0}" != "1" ]]; then
+  export DEBIAN_FRONTEND=noninteractive
   run apt-get update
   run apt-get install -y --no-install-recommends \
     coreutils quilt parted qemu-user-static binfmt-support debootstrap \
     zerofree zip dosfstools libarchive-tools libcap2-bin grep rsync \
     xz-utils file xxd kmod git curl bc qemu-utils kpartx gpg pigz \
     python3 ca-certificates
-  run update-binfmts --enable qemu-arm
+  run update-ca-certificates 2>/dev/null || true
+  enable_qemu_arm_binfmt
 fi
 
 # --- pi-gen checkout -------------------------------------------------------
@@ -156,7 +270,12 @@ STAGE_LIST="stage0 stage1 stage2 stage5-smarttv"
 EOF
 
 # --- Build -----------------------------------------------------------------
-run modprobe nbd max_part=16
+if ! run modprobe nbd max_part=16 2>/dev/null; then
+  echo "ERROR: could not load nbd kernel module (required for pi-gen qcow2)." >&2
+  echo "  Cloud Shell and many containers cannot run pi-gen." >&2
+  echo "  Use a full Ubuntu 22.04 VM with kernel module support." >&2
+  exit 1
+fi
 cd pi-gen
 chmod +x build.sh
 run ./build.sh

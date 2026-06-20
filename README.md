@@ -159,6 +159,21 @@ KEEP_PI_GEN=1 SKIP_APT_HOST=1 ./scripts/build-server.sh
 **Note:** Use Ubuntu **22.04** — pi-gen qcow2 + NBD is unreliable on 24.04+.
 Build under `~/` on the server, not a slow network mount.
 
+**Google Cloud Shell is not supported** (24.04, no NBD, ~5GB disk). Use a
+Compute Engine e2-standard-2 VM with Ubuntu 22.04 and a 50GB+ boot disk:
+
+```bash
+# On a Ubuntu 22.04 GCE VM (not Cloud Shell)
+git clone ... && cd raspi-smarttv-retro
+PUBLISH_RELEASE=1 ./scripts/build-server.sh
+```
+
+If you must try Ubuntu 24.04 or Cloud Shell anyway (likely to fail):
+
+```bash
+ALLOW_UNSUPPORTED_HOST=1 ./scripts/build-server.sh
+```
+
 ## Customizing
 
 - Kodi skin: edit `<skin>` in `config/kodi/guisettings.xml`
