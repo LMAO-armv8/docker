@@ -4,8 +4,11 @@
 echo "=== [install_wallpapers] Installing dynamic wallpapers ==="
 
 export DEBIAN_FRONTEND=noninteractive
+FONT="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+
 apt-get update
-apt-get install -y --no-install-recommends imagemagick fbi fonts-dejavu-core
+apt-get install -y --no-install-recommends imagemagick fbi fonts-dejavu-core fontconfig
+fc-cache -f >/dev/null 2>&1 || true
 
 WALL_ROOT="/usr/share/smarttv/wallpapers"
 mkdir -p "${WALL_ROOT}"/{boot,kodi,es,time/morning,time/afternoon,time/night}
@@ -18,7 +21,7 @@ gen_wall() {
   local c2="$3"
   local label="$4"
   convert -size 1280x720 "gradient:${c1}-${c2}" \
-    -gravity center -fill white -font DejaVu-Sans-Bold -pointsize 48 -annotate 0 "${label}" \
+    -gravity center -fill white -font "${FONT}" -pointsize 48 -annotate 0 "${label}" \
     "${out}"
 }
 
