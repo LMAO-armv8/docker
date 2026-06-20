@@ -3,7 +3,9 @@
 
 echo "=== [install_wallpapers] Installing dynamic wallpapers ==="
 
-export DEBIAN_FRONTEND=noninteractive
+BUILDER="/opt/smarttv-builder/scripts"
+# shellcheck source=/dev/null
+source "${BUILDER}/chroot_env.sh"
 FONT="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
 apt-get update
@@ -39,7 +41,11 @@ cp "${WALL_ROOT}/kodi/kodi-"*.jpg "${WALL_ROOT}/time/afternoon/"
 cp "${WALL_ROOT}/kodi/kodi-"*.jpg "${WALL_ROOT}/time/night/"
 
 install -m 755 /opt/smarttv-builder/scripts/smarttv-wallpaper-rotate.sh /usr/local/bin/smarttv-wallpaper-rotate.sh
-/usr/local/bin/smarttv-wallpaper-rotate.sh
+if is_pi_gen_build; then
+  echo "Skipping wallpaper rotate during image build"
+else
+  /usr/local/bin/smarttv-wallpaper-rotate.sh
+fi
 
 install -m 644 /opt/smarttv-builder/config/systemd/smarttv-wallpaper.service /etc/systemd/system/
 install -m 644 /opt/smarttv-builder/config/systemd/smarttv-wallpaper.timer /etc/systemd/system/

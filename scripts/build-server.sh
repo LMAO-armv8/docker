@@ -274,6 +274,30 @@ if count != 2:
 build_sh.write_text(text)
 PY
 
+python3 <<'PY'
+from pathlib import Path
+
+common = Path("pi-gen/scripts/common")
+text = common.read_text()
+old = '\t\tumount "$loc"\n'
+new = '\t\tumount -l "$loc" 2>/dev/null || umount "$loc" 2>/dev/null || true\n'
+if old not in text:
+    raise SystemExit("expected umount line in pi-gen/scripts/common")
+common.write_text(text.replace(old, new, 1))
+
+qcow2 = Path("pi-gen/scripts/qcow2_handling")
+text = qcow2.read_text()
+old = '\t\twhile mountpoint -q "$loc" && ! umount "$loc"; do\n\t\t\tsleep 0.1\n\t\t\tdone\n'
+new = (
+    '\t\twhile mountpoint -q "$loc"; do\n'
+    '\t\t\tumount -l "$loc" 2>/dev/null || umount "$loc" 2>/dev/null || sleep 0.1\n'
+    '\t\t\tdone\n'
+)
+if old not in text:
+    raise SystemExit("expected umount loop in pi-gen/scripts/qcow2_handling")
+qcow2.write_text(text.replace(old, new, 1))
+PY
+
 # --- Custom stage ----------------------------------------------------------
 rm -rf pi-gen/stage5-smarttv
 cp -r pi-gen-stage pi-gen/stage5-smarttv

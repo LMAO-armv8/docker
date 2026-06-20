@@ -3,7 +3,9 @@
 
 echo "=== [install_network] Configuring onboard Ethernet (eth0) ==="
 
-export DEBIAN_FRONTEND=noninteractive
+BUILDER="/opt/smarttv-builder/scripts"
+# shellcheck source=/dev/null
+source "${BUILDER}/chroot_env.sh"
 
 apt-get update
 apt-get install -y --no-install-recommends \

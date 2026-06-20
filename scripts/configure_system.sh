@@ -3,7 +3,9 @@
 
 echo "=== [configure_system] Configuring system ==="
 
-export DEBIAN_FRONTEND=noninteractive
+BUILDER="/opt/smarttv-builder/scripts"
+# shellcheck source=/dev/null
+source "${BUILDER}/chroot_env.sh"
 TARGET_USER="pi"
 BOOT_CFG="/boot/config.txt"
 BUILDER="/opt/smarttv-builder/scripts"

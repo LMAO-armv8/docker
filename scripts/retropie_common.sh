@@ -7,6 +7,7 @@ RP_GPG_KEY="DC9D77FF8208FFC51D8F50CCF1B030906A3B0D31"
 
 retropie_env() {
   export DEBIAN_FRONTEND=noninteractive
+  export SYSTEMD_OFFLINE=1
   export __platform=rpi1
   export __nodialog=1
   export __user=pi

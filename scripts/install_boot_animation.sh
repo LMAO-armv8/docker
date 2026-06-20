@@ -3,7 +3,9 @@
 
 echo "=== [install_boot_animation] Configuring silent boot and Plymouth ==="
 
-export DEBIAN_FRONTEND=noninteractive
+BUILDER="/opt/smarttv-builder/scripts"
+# shellcheck source=/dev/null
+source "${BUILDER}/chroot_env.sh"
 
 apt-get update
 apt-get install -y --no-install-recommends plymouth plymouth-themes fbset

@@ -143,6 +143,32 @@ jobs:
           build_sh.write_text(text)
           PY
 
+          # Lazy umount avoids infinite "target is busy" on bind-mounted /dev when
+          # qemu-user-static or host systemd still holds device nodes open.
+          python3 <<'PY'
+          from pathlib import Path
+
+          common = Path("pi-gen/scripts/common")
+          text = common.read_text()
+          old = '\t\tumount "$loc"\n'
+          new = '\t\tumount -l "$loc" 2>/dev/null || umount "$loc" 2>/dev/null || true\n'
+          if old not in text:
+              raise SystemExit("expected umount line in pi-gen/scripts/common")
+          common.write_text(text.replace(old, new, 1))
+
+          qcow2 = Path("pi-gen/scripts/qcow2_handling")
+          text = qcow2.read_text()
+          old = '\t\twhile mountpoint -q "$loc" && ! umount "$loc"; do\n\t\t\tsleep 0.1\n\t\t\tdone\n'
+          new = (
+              '\t\twhile mountpoint -q "$loc"; do\n'
+              '\t\t\tumount -l "$loc" 2>/dev/null || umount "$loc" 2>/dev/null || sleep 0.1\n'
+              '\t\t\tdone\n'
+          )
+          if old not in text:
+              raise SystemExit("expected umount loop in pi-gen/scripts/qcow2_handling")
+          qcow2.write_text(text.replace(old, new, 1))
+          PY
+
       - name: Drop in the custom build stage
         run: |
           # pi-gen treats every top level folder that matches stage-* (or is
