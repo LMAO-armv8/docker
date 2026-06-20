@@ -28,12 +28,14 @@ apt-get install -y --no-install-recommends \
   unclutter \
   xmlstarlet
 
+update-ca-certificates 2>/dev/null || true
+
 install -d -o "${TARGET_USER}" -g "${TARGET_USER}" "${KODI_HOME}/userdata"
 install -d -o "${TARGET_USER}" -g "${TARGET_USER}" "${KODI_HOME}/userdata/addon_data"
 
 echo "=== [install_kodi] Installing Arctic Zephyr 2 skin and dependencies ==="
+# script.module.pil is not published on the Leia mirror; omit it (PIL ships with Kodi Python).
 AZ2_DEPS=(
-  script.module.pil
   script.module.requests
   script.module.simplejson
   script.skinshortcuts
@@ -47,19 +49,15 @@ for dep in "${AZ2_DEPS[@]}"; do
   kodi_install_addon "${dep}" || echo "WARNING: optional AZ2 dep ${dep} missing"
 done
 
-kodi_install_addon "repository.xbmc.org" || true
-
 if ! kodi_install_addon "skin.arctic.zephyr.2"; then
   echo "=== [install_kodi] AZ2 mirror failed; cloning from GitHub ==="
-  SKIN_DIR="${KODI_ADDON_DIR}/skin.arctic.zephyr.2"
-  rm -rf "${SKIN_DIR}"
-  git clone --depth 1 https://github.com/jurialmunkey/skin.arctic.zephyr.2.git "${SKIN_DIR}" \
+  kodi_clone_skin_github "https://github.com/jurialmunkey/skin.arctic.zephyr.2.git" "skin.arctic.zephyr.2" \
     || echo "WARNING: Arctic Zephyr 2 unavailable; Estuary fallback will be used"
 fi
 
 SKIN_FALLBACK="${KODI_ADDON_DIR}/skin.estuary.modv2"
 if [ ! -d "${SKIN_FALLBACK}" ]; then
-  git clone --depth 1 https://github.com/AnonTester/skin.estuary.modv2.git "${SKIN_FALLBACK}" \
+  kodi_clone_skin_github "https://github.com/AnonTester/skin.estuary.modv2.git" "skin.estuary.modv2" \
     || echo "WARNING: Estuary MOD V2 fallback unavailable"
 fi
 
@@ -75,13 +73,18 @@ for dep in "${YT_DEPS[@]}"; do
   kodi_install_addon "${dep}" || echo "WARNING: YouTube dep ${dep} missing"
 done
 
-YT_ZIP=$(curl -fsSL "http://mirrors.kodi.tv/addons/leia/plugin.video.youtube/" 2>/dev/null \
+YT_ZIP=$(kodi_mirror_index "http://mirrors.kodi.tv/addons/leia/plugin.video.youtube/" \
   | grep -oE 'plugin\.video\.youtube-6\.8\.[0-9][^"]*\.zip' \
   | grep -viE '\+matrix' | sort -V | tail -n1 || true)
+
 if [ -n "${YT_ZIP}" ]; then
-  kodi_install_addon "plugin.video.youtube" "${YT_ZIP}"
+  kodi_install_addon "plugin.video.youtube" "${YT_ZIP}" \
+    || kodi_install_youtube_github \
+    || echo "WARNING: YouTube add-on could not be installed"
 else
-  kodi_install_addon "plugin.video.youtube" || true
+  kodi_install_addon "plugin.video.youtube" \
+    || kodi_install_youtube_github \
+    || echo "WARNING: YouTube add-on could not be installed"
 fi
 
 YT_VIDEO_INFO="${KODI_ADDON_DIR}/plugin.video.youtube/resources/lib/youtube_plugin/youtube/helper/video_info.py"

@@ -7,6 +7,21 @@ LEIA_MIRROR="${LEIA_MIRROR:-http://mirrors.kodi.tv/addons/leia}"
 KODI_INSTALLED_MARKERS="${KODI_INSTALLED_MARKERS:-/tmp/kodi-addon-install-markers}"
 mkdir -p "${KODI_INSTALLED_MARKERS}" "${KODI_ADDON_DIR}"
 
+# mirrors.kodi.tv redirects HTTP→HTTPS; pi-gen Buster chroots often lack a CA chain
+# that validates the mirror cert. Try strict TLS first, then -k (build-time only).
+kodi_curl() {
+  if curl -fsSL --retry 3 --retry-delay 2 "$@"; then
+    return 0
+  fi
+  echo "NOTE: retrying with curl -k (mirror TLS in chroot)" >&2
+  curl -fsSLk --retry 3 --retry-delay 2 "$@"
+}
+
+kodi_mirror_index() {
+  local index_url="$1"
+  kodi_curl "${index_url}" 2>/dev/null
+}
+
 kodi_install_addon() {
   local addon_id="$1"
   local pinned_zip="${2:-}"
@@ -30,7 +45,7 @@ kodi_install_addon() {
   if [ -n "${pinned_zip}" ]; then
     zip_name="${pinned_zip}"
   else
-    zip_name=$(curl -fsSL "${index_url}" 2>/dev/null \
+    zip_name=$(kodi_mirror_index "${index_url}" \
       | grep -oE "${addon_pattern}-[0-9][^\"<>]*\\.zip" \
       | grep -viE '\+matrix|\+nexus|\+omega|\+dharma' \
       | sort -V | tail -n1 || true)
@@ -46,7 +61,7 @@ kodi_install_addon() {
   rm -rf "${tmp_extract}"
   mkdir -p "${tmp_extract}"
 
-  if ! curl -fsSL -o "${tmp_zip}" "${index_url}${zip_name}"; then
+  if ! kodi_curl -o "${tmp_zip}" "${index_url}${zip_name}"; then
     echo "WARNING: failed to download ${index_url}${zip_name}" >&2
     rm -rf "${tmp_extract}" "${tmp_zip}"
     return 1
@@ -95,11 +110,36 @@ kodi_install_addon_from_zip_url() {
   local tmp_extract="/tmp/kodi-extract-url-${addon_id}"
   rm -rf "${tmp_extract}" "${tmp_zip}"
   mkdir -p "${tmp_extract}"
-  curl -fsSL -o "${tmp_zip}" "${zip_url}"
+  kodi_curl -o "${tmp_zip}" "${zip_url}"
   unzip -q -o "${tmp_zip}" -d "${tmp_extract}"
   rm -f "${tmp_zip}"
   rm -rf "${KODI_ADDON_DIR}/${addon_id}"
   cp -a "${tmp_extract}/${addon_id}" "${KODI_ADDON_DIR}/${addon_id}"
   touch "${KODI_INSTALLED_MARKERS}/${addon_id}"
   rm -rf "${tmp_extract}"
+}
+
+kodi_install_youtube_github() {
+  local dir="${KODI_ADDON_DIR}/plugin.video.youtube"
+  echo "=== [kodi_install_addon] Installing YouTube from GitHub (mirror fallback) ==="
+  rm -rf "${dir}"
+  if git clone --depth 1 --branch v6.8.25 https://github.com/anxdpanic/plugin.video.youtube.git "${dir}" 2>/dev/null; then
+    :
+  elif git clone --depth 1 https://github.com/anxdpanic/plugin.video.youtube.git "${dir}"; then
+    :
+  else
+    echo "WARNING: YouTube GitHub clone failed" >&2
+    return 1
+  fi
+  touch "${KODI_INSTALLED_MARKERS}/plugin.video.youtube"
+  return 0
+}
+
+kodi_clone_skin_github() {
+  local repo="$1"
+  local addon_id="$2"
+  local dir="${KODI_ADDON_DIR}/${addon_id}"
+  rm -rf "${dir}"
+  git clone --depth 1 "${repo}" "${dir}" || return 1
+  touch "${KODI_INSTALLED_MARKERS}/${addon_id}"
 }
