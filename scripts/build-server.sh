@@ -95,7 +95,7 @@ preflight_host() {
 # Register ARM binfmt for pi-gen chroots. Ubuntu 22.04 uses update-binfmts;
 # Ubuntu 24.04 moved to systemd-binfmt + /usr/lib/binfmt.d/*.conf.
 enable_qemu_arm_binfmt() {
-  local qemu_arm
+  local qemu_arm entry base
   qemu_arm="$(command -v qemu-arm-static || true)"
   if [[ -z "${qemu_arm}" ]]; then
     echo "ERROR: qemu-arm-static not found after apt install." >&2
@@ -103,8 +103,13 @@ enable_qemu_arm_binfmt() {
   fi
 
   binfmt_arm_ok() {
-    for entry in /proc/sys/fs/binfmt_misc/qemu-arm /proc/sys/fs/binfmt_misc/arm; do
-      if [[ -f "${entry}" ]] && grep -q '^enabled' "${entry}" 2>/dev/null; then
+    for entry in /proc/sys/fs/binfmt_misc/*; do
+      base="$(basename "${entry}")"
+      [[ "${base}" == "register" || "${base}" == "status" ]] && continue
+      [[ -f "${entry}" ]] || continue
+      if grep -q '^enabled' "${entry}" 2>/dev/null \
+        && grep -qE 'qemu-arm(-static)?|/qemu-arm-static' "${entry}" 2>/dev/null; then
+        echo "  binfmt entry OK: ${base}"
         return 0
       fi
     done
@@ -118,13 +123,22 @@ enable_qemu_arm_binfmt() {
 
   echo "=== Enabling ARM binfmt (qemu-arm-static) ==="
 
+  # Re-run package hooks (works on 22.04; harmless on 24.04).
+  run apt-get install -y --reinstall qemu-user-static binfmt-support 2>/dev/null || true
+  run dpkg-reconfigure -f noninteractive binfmt-support 2>/dev/null || true
+
   # Ubuntu 22.04 path
-  run update-binfmts --importdir /usr/share/binfmts 2>/dev/null || true
-  if run update-binfmts --enable qemu-arm 2>/dev/null; then
-    binfmt_arm_ok && return 0
+  if [[ -d /usr/share/binfmts ]]; then
+    run update-binfmts --importdir /usr/share/binfmts 2>/dev/null || true
+  fi
+  run update-binfmts --enable qemu-arm 2>/dev/null || true
+  if binfmt_arm_ok; then
+    echo "ARM binfmt enabled via update-binfmts."
+    return 0
   fi
 
   # Ubuntu 24.04+ path: systemd-binfmt + binfmt.d configs
+  run apt-get install -y qemu-user-binfmt 2>/dev/null || true
   run mkdir -p /etc/binfmt.d
   for conf in /usr/lib/binfmt.d/qemu-arm*.conf; do
     [[ -f "${conf}" ]] || continue
@@ -137,25 +151,49 @@ enable_qemu_arm_binfmt() {
     return 0
   fi
 
-  # Manual registration with fix-binary (F) — required for pi-gen chroots.
+  # Manual registration — use Python so \\xNN escapes reach the kernel correctly.
   run mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
-  if [[ -f /proc/sys/fs/binfmt_misc/qemu-arm ]]; then
-    echo -1 | run tee /proc/sys/fs/binfmt_misc/qemu-arm >/dev/null 2>&1 || true
-  fi
-  if [[ -f /proc/sys/fs/binfmt_misc/arm ]]; then
-    echo -1 | run tee /proc/sys/fs/binfmt_misc/arm >/dev/null 2>&1 || true
-  fi
+  for entry in /proc/sys/fs/binfmt_misc/*; do
+    base="$(basename "${entry}")"
+    [[ "${base}" == "register" || "${base}" == "status" ]] && continue
+    [[ -f "${entry}" ]] || continue
+    if grep -qE 'qemu-arm|qemu-arm-static' "${entry}" 2>/dev/null; then
+      echo -1 | run tee "${entry}" >/dev/null 2>&1 || true
+    fi
+  done
 
-  printf '%s\n' \
-    ":qemu-arm:M::\\x7fELF\\x01\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x28\\x00:\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xfe\\xff\\xff:${qemu_arm}:F" \
-    | run tee /proc/sys/fs/binfmt_misc/register >/dev/null
+  if run python3 - "${qemu_arm}" <<'PY'
+import sys
+qemu = sys.argv[1]
+prefix = (
+    ":qemu-arm:M::\\x7fELF\\x01\\x01\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x02\\x00\\x28\\x00"
+    ":\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\xff\\xfe\\xff\\xff"
+    f":{qemu}:"
+)
+reg = "/proc/sys/fs/binfmt_misc/register"
+for flags in ("F", "OC", "CF"):
+    try:
+        with open(reg, "w") as fh:
+            fh.write(prefix + flags)
+        sys.exit(0)
+    except OSError:
+        continue
+sys.exit(1)
+PY
+  then
+      echo "ARM binfmt enabled via manual register."
+      return 0
+    fi
+  else
+    echo "NOTE: manual binfmt register failed (see above); checking existing entries..." >&2
+  fi
 
   if binfmt_arm_ok; then
-    echo "ARM binfmt enabled via manual /proc/sys/fs/binfmt_misc/register."
     return 0
   fi
 
   echo "ERROR: could not enable ARM binfmt. pi-gen chroot will fail with 'exec format error'." >&2
+  echo "  Debug: ls -la /proc/sys/fs/binfmt_misc/ && update-binfmts --display" >&2
   return 1
 }
 
