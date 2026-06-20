@@ -6,6 +6,10 @@ echo "=== [install_emulationstation] Installing EmulationStation via RetroPie-Se
 export DEBIAN_FRONTEND=noninteractive
 export __platform=rpi1
 export __nodialog=1
+# GitHub Actions / cloud build hosts set SUDO_USER=runner; pi-gen passes it
+# into the chroot. RetroPie must install for the image user "pi".
+export __user=pi
+export SUDO_USER=pi
 
 RP_SETUP_DIR="/opt/retropie-setup"
 THEME_DIR="/home/pi/.emulationstation/themes/es-theme-art-book-next"

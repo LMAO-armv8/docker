@@ -23,6 +23,10 @@ export __platform=rpi1   # force platform: /proc/cpuinfo inside a qemu chroot
                           # reflects the build host, not the Pi 1 target, so
                           # RetroPie-Setup's auto-detection cannot be trusted.
 export __nodialog=1
+# pi-gen chroot inherits SUDO_USER from the build host (e.g. "runner" on
+# GitHub Actions). retropie_packages.sh uses that to pick the install user.
+export __user=pi
+export SUDO_USER=pi
 
 RP_SETUP_DIR="/opt/retropie-setup"
 
