@@ -78,7 +78,42 @@ restore_work_tree() {
   echo "=== [pi-gen-cache] Restoring work tree from ${WORK_CACHE} ==="
   mkdir -p "${WORK_DIR}"
   rsync -aH "${WORK_CACHE}/" "${WORK_DIR}/"
+  validate_work_qcow2 "${WORK_DIR}" || invalidate_work_qcow2 "${WORK_DIR}"
   ls -lh "${WORK_DIR}"/image-*.qcow2 2>/dev/null || true
+}
+
+validate_qcow2() {
+  local img="$1"
+  [[ -f "${img}" ]] || return 0
+  echo "=== [pi-gen-cache] Checking ${img} ==="
+  if qemu-img check "${img}" >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "WARNING: corrupt or incomplete qcow2: ${img}"
+  return 1
+}
+
+validate_work_qcow2() {
+  local work="$1"
+  local img failed=0
+  shopt -s nullglob
+  local images=("${work}"/image-*.qcow2)
+  shopt -u nullglob
+  [[ ${#images[@]} -gt 0 ]] || return 0
+  for img in "${images[@]}"; do
+    if ! validate_qcow2 "${img}"; then
+      failed=1
+      rm -f "${img}"
+    fi
+  done
+  [[ "${failed}" -eq 0 ]]
+}
+
+invalidate_work_qcow2() {
+  local work="$1"
+  echo "=== [pi-gen-cache] Invalidating cached qcow2 images ==="
+  rm -f "${work}"/image-*.qcow2
+  rm -rf "${work}"/stage0 "${work}"/stage1 "${work}"/stage2 "${work}"/stage5-smarttv
 }
 
 cmd_prepare() {
@@ -120,6 +155,18 @@ cmd_save() {
     echo "=== [pi-gen-cache] Nothing to save (${WORK_DIR} missing) ==="
     return 0
   }
+
+  if [[ "${PI_GEN_CACHE_FORCE_SAVE:-0}" != "1" ]]; then
+    if ! find "${PI_GEN_DIR}/deploy" -maxdepth 1 -name '*.img' -print -quit 2>/dev/null | grep -q .; then
+      echo "=== [pi-gen-cache] Skipping cache save (no .img in deploy — build did not finish export) ==="
+      return 0
+    fi
+  fi
+
+  if ! validate_work_qcow2 "${WORK_DIR}"; then
+    echo "=== [pi-gen-cache] Skipping cache save (qcow2 chain failed qemu-img check) ==="
+    return 0
+  fi
 
   echo "=== [pi-gen-cache] Saving work tree to ${WORK_CACHE} ==="
   mkdir -p "${WORK_CACHE}"

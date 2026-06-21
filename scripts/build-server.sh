@@ -320,6 +320,32 @@ if 'umount -l "$loc"' not in text:
     qcow2.write_text(pat.sub(repl, text, count=1))
 PY
 
+python3 <<'PY'
+from pathlib import Path
+
+qcow2 = Path("pi-gen/scripts/qcow2_handling")
+text = qcow2.read_text()
+old = "\te2fsck -y -f $MAP_ROOT_DEV || true\n"
+new = (
+    "\tfor fs_pass in 1 2 3; do\n"
+    "\t\te2fsck -fy $MAP_ROOT_DEV && break\n"
+    "\t\te2fsck -fy $MAP_ROOT_DEV || true\n"
+    "\t\tsleep 1\n"
+    "\t\t[ \"$fs_pass\" -eq 3 ] && return 1\n"
+    "\tdone\n"
+)
+if old not in text and "for fs_pass in 1 2 3" not in text:
+    raise SystemExit("expected e2fsck line in pi-gen/scripts/qcow2_handling")
+if old in text:
+    qcow2.write_text(text.replace(old, new, 1))
+
+text = qcow2.read_text()
+old = '\tfstrim -v "${CURRENT_MOUNTPOINT}" || true\n'
+new = '\tsync\n\t# fstrim skipped during build: unsafe on busy/unclean rootfs\n'
+if old in text:
+    qcow2.write_text(text.replace(old, new, 1))
+PY
+
 # --- Custom stage ----------------------------------------------------------
 rm -rf pi-gen/stage5-smarttv
 cp -r pi-gen-stage pi-gen/stage5-smarttv
@@ -354,8 +380,9 @@ if [[ "${PI_GEN_CACHE}" == "1" ]]; then
 fi
 
 # --- Build -----------------------------------------------------------------
+BUILD_OK=0
 save_pi_gen_cache() {
-  if [[ "${PI_GEN_CACHE}" == "1" ]]; then
+  if [[ "${BUILD_OK}" -eq 1 ]] && [[ "${PI_GEN_CACHE}" == "1" ]]; then
     scripts/pi-gen-cache.sh save || true
   fi
 }
@@ -369,6 +396,7 @@ fi
 cd pi-gen
 chmod +x build.sh
 run ./build.sh
+BUILD_OK=1
 cd "${REPO_ROOT}"
 
 IMG_FILE="$(find pi-gen/deploy -maxdepth 1 -iname '*.img' | head -n1)"

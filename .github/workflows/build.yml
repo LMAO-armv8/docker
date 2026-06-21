@@ -185,6 +185,37 @@ jobs:
               qcow2.write_text(pat.sub(repl, text, count=1))
           PY
 
+          # Export resize: e2fsck must repair the rootfs before resize2fs runs.
+          # A failed/aborted prior export can leave extent errors that resize2fs
+          # cannot handle when e2fsck is ignored (pi-gen defaults to || true).
+          python3 <<'PY'
+          from pathlib import Path
+
+          qcow2 = Path("pi-gen/scripts/qcow2_handling")
+          text = qcow2.read_text()
+          old = "\te2fsck -y -f $MAP_ROOT_DEV || true\n"
+          new = (
+              "\tfor fs_pass in 1 2 3; do\n"
+              "\t\te2fsck -fy $MAP_ROOT_DEV && break\n"
+              "\t\te2fsck -fy $MAP_ROOT_DEV || true\n"
+              "\t\tsleep 1\n"
+              "\t\t[ \"$fs_pass\" -eq 3 ] && return 1\n"
+              "\tdone\n"
+          )
+          if old not in text and "for fs_pass in 1 2 3" not in text:
+              raise SystemExit("expected e2fsck line in pi-gen/scripts/qcow2_handling")
+          if old in text:
+              qcow2.write_text(text.replace(old, new, 1))
+
+          # fstrim on a rootfs that was not cleanly unmounted can contribute to
+          # corrupt extents before export; sync is enough before umount.
+          text = qcow2.read_text()
+          old = '\tfstrim -v "${CURRENT_MOUNTPOINT}" || true\n'
+          new = '\tsync\n\t# fstrim skipped during build: unsafe on busy/unclean rootfs\n'
+          if old in text:
+              qcow2.write_text(text.replace(old, new, 1))
+          PY
+
       - name: Drop in the custom build stage
         run: |
           # pi-gen treats every top level folder that matches stage-* (or is
@@ -249,7 +280,7 @@ jobs:
           sudo ./build.sh
 
       - name: Save pi-gen work cache
-        if: always()
+        if: success()
         run: scripts/pi-gen-cache.sh save
 
       - name: Locate build output
