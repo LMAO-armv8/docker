@@ -92,8 +92,41 @@ retropie_install_binary() {
   return 0
 }
 
+retropie_install_retroarch_assets() {
+  local assets_dir="/opt/retropie/emulators/retroarch/assets"
+  if [[ -d "${assets_dir}" ]] && [[ -n "$(find "${assets_dir}" -mindepth 1 -print -quit 2>/dev/null)" ]]; then
+    return 0
+  fi
+
+  local url="https://files.retropie.org.uk/binaries/retroarch-minimal-assets.tar.gz"
+  local tmp archive
+  tmp="$(mktemp -d)"
+  archive="${tmp}/retroarch-minimal-assets.tar.gz"
+
+  echo "--- retropie_install_retroarch_assets ---"
+  if ! retropie_curl "${url}" "${archive}"; then
+    echo "WARNING: retroarch minimal assets download failed"
+    rm -rf "${tmp}"
+    return 1
+  fi
+
+  mkdir -p "/opt/retropie/emulators/retroarch"
+  if ! tar -xzf "${archive}" -C "/opt/retropie/emulators/retroarch"; then
+    echo "WARNING: failed to extract retroarch minimal assets"
+    rm -rf "${tmp}"
+    return 1
+  fi
+
+  rm -rf "${tmp}"
+  echo "Installed RetroArch minimal assets"
+  return 0
+}
+
 retropie_configure_module() {
   local module="$1"
+  if [[ "${module}" == "retroarch" ]]; then
+    retropie_install_retroarch_assets || true
+  fi
   echo "--- retropie_packages.sh ${module} configure ---"
   (cd "${RP_SETUP_DIR}" && ./retropie_packages.sh "${module}" configure) \
     || echo "WARNING: configure failed for ${module}"

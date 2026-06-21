@@ -182,12 +182,129 @@ kodi_install_youtube_github() {
   return 0
 }
 
+AZ2_SKIN_ID="skin.arctic.zephyr.2"
+AZ2_SKIN_TAG="${AZ2_SKIN_TAG:-v0.9.60-alpha1}"
+AZ2_SKIN_REPO="https://github.com/jurialmunkey/skin.arctic.zephyr.2.git"
+
+kodi_set_skin_in_guisettings() {
+  local skin_id="$1"
+  local file="$2"
+  [[ -f "${file}" ]] || return 1
+  sed -i "s|<skin>.*</skin>|<skin>${skin_id}</skin>|" "${file}"
+  sed -i "s|<soundskin[^>]*>.*</soundskin>|<soundskin default=\"true\">${skin_id}</soundskin>|" \
+    "${file}" 2>/dev/null || true
+  sed -i "s|<setting id=\"lookandfeel.skin\"[^>]*>.*</setting>|<setting id=\"lookandfeel.skin\">${skin_id}</setting>|" \
+    "${file}" 2>/dev/null || true
+  sed -i "s|<setting id=\"lookandfeel.soundskin\"[^>]*>.*</setting>|<setting id=\"lookandfeel.soundskin\">${skin_id}</setting>|" \
+    "${file}" 2>/dev/null || true
+}
+
+kodi_mark_az2_version() {
+  local dir="$1"
+  local tag="$2"
+  echo "${tag}" > "${dir}/.smarttv-pinned-version"
+}
+
+kodi_az2_is_pinned() {
+  local dir="$1"
+  local tag="$2"
+  [[ -f "${dir}/addon.xml" ]] \
+    && [[ -f "${dir}/.smarttv-pinned-version" ]] \
+    && grep -qxF "${tag}" "${dir}/.smarttv-pinned-version"
+}
+
+kodi_install_addon_tree() {
+  local addon_id="$1"
+  local src_dir="$2"
+  [[ -f "${src_dir}/addon.xml" ]] || return 1
+  rm -rf "${KODI_ADDON_DIR}/${addon_id}"
+  cp -a "${src_dir}" "${KODI_ADDON_DIR}/${addon_id}"
+  touch "${KODI_INSTALLED_MARKERS}/${addon_id}"
+  kodi_sync_to_user "${addon_id}"
+  return 0
+}
+
 kodi_clone_skin_github() {
   local repo="$1"
   local addon_id="$2"
+  local tag="${3:-}"
   local dir="${KODI_ADDON_DIR}/${addon_id}"
   rm -rf "${dir}"
-  git clone --depth 1 "${repo}" "${dir}" || return 1
+  if [[ -n "${tag}" ]]; then
+    git clone --depth 1 --branch "${tag}" "${repo}" "${dir}" || return 1
+    kodi_mark_az2_version "${dir}" "${tag}"
+  else
+    git clone --depth 1 "${repo}" "${dir}" || return 1
+  fi
   touch "${KODI_INSTALLED_MARKERS}/${addon_id}"
   kodi_sync_to_user "${addon_id}"
+}
+
+kodi_install_az2_from_release_zip() {
+  local tag="${1:-${AZ2_SKIN_TAG}}"
+  local addon_id="${AZ2_SKIN_ID}"
+  local zip_url="https://github.com/jurialmunkey/skin.arctic.zephyr.2/archive/refs/tags/${tag}.zip"
+  local saved_name="${addon_id}-${tag}.zip"
+  local tmp_zip="/tmp/${saved_name}"
+  local tmp_extract="/tmp/kodi-extract-${addon_id}"
+  local zip_source=""
+
+  rm -rf "${tmp_extract}"
+  mkdir -p "${tmp_extract}"
+
+  if [[ -n "${KODI_SAVE_PACKAGES_DIR}" ]] && [[ -f "${KODI_SAVE_PACKAGES_DIR}/${saved_name}" ]]; then
+    zip_source="${KODI_SAVE_PACKAGES_DIR}/${saved_name}"
+    cp -f "${zip_source}" "${tmp_zip}"
+  elif kodi_curl -o "${tmp_zip}" "${zip_url}"; then
+    kodi_save_package_zip "${addon_id}" "${tmp_zip}"
+    if [[ -n "${KODI_SAVE_PACKAGES_DIR}" ]]; then
+      cp -f "${tmp_zip}" "${KODI_SAVE_PACKAGES_DIR}/${saved_name}"
+    fi
+  else
+    rm -rf "${tmp_extract}" "${tmp_zip}"
+    return 1
+  fi
+
+  unzip -q -o "${tmp_zip}" -d "${tmp_extract}"
+  rm -f "${tmp_zip}"
+
+  local src_dir="${tmp_extract}/${addon_id}"
+  if [[ ! -d "${src_dir}" ]]; then
+    src_dir=$(find "${tmp_extract}" -mindepth 1 -maxdepth 1 -type d | head -n1)
+  fi
+  if ! kodi_install_addon_tree "${addon_id}" "${src_dir}"; then
+    rm -rf "${tmp_extract}"
+    return 1
+  fi
+  kodi_mark_az2_version "${KODI_ADDON_DIR}/${addon_id}" "${tag}"
+  kodi_sync_to_user "${addon_id}"
+  rm -rf "${tmp_extract}"
+  echo "=== [kodi_install_addon] Installed ${addon_id} from GitHub release ${tag} ==="
+  return 0
+}
+
+kodi_install_az2_skin() {
+  local tag="${1:-${AZ2_SKIN_TAG}}"
+  local addon_id="${AZ2_SKIN_ID}"
+  local dir="${KODI_ADDON_DIR}/${addon_id}"
+
+  if kodi_az2_is_pinned "${dir}" "${tag}"; then
+    kodi_sync_to_user "${addon_id}"
+    return 0
+  fi
+
+  echo "=== [kodi_install_addon] Installing ${addon_id} (${tag}) ==="
+
+  if kodi_install_addon "${addon_id}"; then
+    kodi_mark_az2_version "${KODI_ADDON_DIR}/${addon_id}" "${tag}"
+    kodi_sync_to_user "${addon_id}"
+    return 0
+  fi
+
+  if kodi_install_az2_from_release_zip "${tag}"; then
+    return 0
+  fi
+
+  echo "=== [kodi_install_addon] AZ2 release zip failed; cloning GitHub tag ${tag} ==="
+  kodi_clone_skin_github "${AZ2_SKIN_REPO}" "${addon_id}" "${tag}"
 }

@@ -67,13 +67,7 @@ for dep in "${AZ2_DEPS[@]}"; do
 done
 
 SKIN_ID="skin.arctic.zephyr.2"
-if ! kodi_install_addon "${SKIN_ID}"; then
-  echo "=== [install_kodi] AZ2 mirror failed; cloning from GitHub ==="
-  kodi_clone_skin_github "https://github.com/jurialmunkey/skin.arctic.zephyr.2.git" "${SKIN_ID}" \
-    || SKIN_ID="skin.estuary"
-fi
-
-if [ ! -d "${KODI_ADDON_DIR}/${SKIN_ID}" ]; then
+if ! kodi_install_az2_skin "${AZ2_SKIN_TAG:-v0.9.60-alpha1}"; then
   SKIN_ID="skin.estuary"
   echo "=== [install_kodi] Using built-in Estuary skin fallback ==="
 fi
@@ -122,9 +116,7 @@ cp /opt/smarttv-builder/config/kodi/advancedsettings.xml "${KODI_CONFIG_DST}/adv
 cp /opt/smarttv-builder/config/kodi/sources.xml "${KODI_CONFIG_DST}/sources.xml"
 cp /opt/smarttv-builder/config/kodi/favourites.xml "${KODI_CONFIG_DST}/favourites.xml"
 
-sed -i "s|<skin>.*</skin>|<skin>${SKIN_ID}</skin>|" "${KODI_CONFIG_DST}/guisettings.xml"
-sed -i "s|<soundskin[^>]*>.*</soundskin>|<soundskin default=\"true\">${SKIN_ID}</soundskin>|" \
-  "${KODI_CONFIG_DST}/guisettings.xml" || true
+kodi_set_skin_in_guisettings "${SKIN_ID}" "${KODI_CONFIG_DST}/guisettings.xml"
 
 cp "${KODI_CONFIG_DST}/guisettings.xml" "${KODI_HOME}/userdata/guisettings.xml"
 cp "${KODI_CONFIG_DST}/advancedsettings.xml" "${KODI_HOME}/userdata/advancedsettings.xml"

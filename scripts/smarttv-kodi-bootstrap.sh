@@ -13,6 +13,9 @@ KODI_PACKAGES="/usr/local/share/smarttv/addon-packages"
 KODI_CONFIG_SRC="/usr/local/share/smarttv/kodi-config"
 LOG="/var/log/smarttv-kodi-bootstrap.log"
 STATE="/var/lib/smarttv/kodi-bootstrap-ok"
+AZ2_SKIN_ID="skin.arctic.zephyr.2"
+AZ2_SKIN_TAG="v0.9.60-alpha1"
+AZ2_SKIN_REPO="https://github.com/jurialmunkey/skin.arctic.zephyr.2.git"
 
 mkdir -p "${KODI_USER_ADDONS}" "${KODI_HOME}/userdata" /var/lib/smarttv
 chown -R "${TARGET_USER}:${TARGET_USER}" "${KODI_HOME}"
@@ -39,6 +42,11 @@ install_from_saved_zip() {
   rm -rf "${KODI_SYS_ADDONS}/${addon_id}" "${KODI_USER_ADDONS}/${addon_id}"
   cp -a "${src}" "${KODI_SYS_ADDONS}/${addon_id}"
   cp -a "${src}" "${KODI_USER_ADDONS}/${addon_id}"
+  if [[ "${addon_id}" == "${AZ2_SKIN_ID}" ]]; then
+    echo "${AZ2_SKIN_TAG}" > "${KODI_SYS_ADDONS}/${addon_id}/.smarttv-pinned-version"
+    cp -f "${KODI_SYS_ADDONS}/${addon_id}/.smarttv-pinned-version" \
+      "${KODI_USER_ADDONS}/${addon_id}/.smarttv-pinned-version"
+  fi
   rm -rf "${tmp}"
   log "Installed ${addon_id} from ${zip}"
   return 0
@@ -47,13 +55,17 @@ install_from_saved_zip() {
 install_from_github() {
   local repo="$1"
   local addon_id="$2"
+  local tag="${3:-}"
   local dir="${KODI_SYS_ADDONS}/${addon_id}"
   rm -rf "${dir}"
-  if ! git clone --depth 1 "${repo}" "${dir}"; then
-    return 1
+  if [[ -n "${tag}" ]]; then
+    git clone --depth 1 --branch "${tag}" "${repo}" "${dir}" || return 1
+    echo "${tag}" > "${dir}/.smarttv-pinned-version"
+  else
+    git clone --depth 1 "${repo}" "${dir}" || return 1
   fi
   cp -a "${dir}" "${KODI_USER_ADDONS}/${addon_id}"
-  log "Installed ${addon_id} from ${repo}"
+  log "Installed ${addon_id} from ${repo}${tag:+ @ ${tag}}"
   return 0
 }
 
@@ -62,6 +74,14 @@ install_with_network() {
   # shellcheck source=/dev/null
   source /usr/local/share/smarttv/kodi_install_addon.sh
   export KODI_ADDON_DIR="${KODI_SYS_ADDONS}"
+  export KODI_USER_ADDON_DIR="${KODI_USER_ADDONS}"
+  export KODI_SAVE_PACKAGES_DIR="${KODI_PACKAGES}"
+  if [[ "${addon_id}" == "${AZ2_SKIN_ID}" ]]; then
+    if kodi_install_az2_skin "${AZ2_SKIN_TAG}"; then
+      return 0
+    fi
+    return 1
+  fi
   if kodi_install_addon "${addon_id}"; then
     cp -a "${KODI_SYS_ADDONS}/${addon_id}" "${KODI_USER_ADDONS}/${addon_id}" 2>/dev/null || true
     return 0
@@ -69,8 +89,30 @@ install_with_network() {
   return 1
 }
 
+az2_is_pinned() {
+  local dir="$1"
+  [[ -f "${dir}/addon.xml" ]] \
+    && [[ -f "${dir}/.smarttv-pinned-version" ]] \
+    && grep -qxF "${AZ2_SKIN_TAG}" "${dir}/.smarttv-pinned-version"
+}
+
+ensure_az2_skin() {
+  if az2_is_pinned "${KODI_SYS_ADDONS}/${AZ2_SKIN_ID}" \
+    || az2_is_pinned "${KODI_USER_ADDONS}/${AZ2_SKIN_ID}"; then
+    return 0
+  fi
+  install_from_saved_zip "${AZ2_SKIN_ID}" && return 0
+  install_with_network "${AZ2_SKIN_ID}" && return 0
+  install_from_github "${AZ2_SKIN_REPO}" "${AZ2_SKIN_ID}" "${AZ2_SKIN_TAG}" && return 0
+  return 1
+}
+
 ensure_addon() {
   local addon_id="$1"
+  if [[ "${addon_id}" == "${AZ2_SKIN_ID}" ]]; then
+    ensure_az2_skin && return 0
+    return 1
+  fi
   if [[ -f "${KODI_SYS_ADDONS}/${addon_id}/addon.xml" ]] \
     || [[ -f "${KODI_USER_ADDONS}/${addon_id}/addon.xml" ]]; then
     return 0
@@ -88,12 +130,22 @@ apply_kodi_config() {
     cp "${KODI_CONFIG_SRC}/${f}" "${KODI_HOME}/userdata/${f}"
   done
   if [[ -f "${KODI_HOME}/userdata/guisettings.xml" ]]; then
-    sed -i "s|<skin>.*</skin>|<skin>${skin_id}</skin>|" "${KODI_HOME}/userdata/guisettings.xml"
-    sed -i "s|<soundskin[^>]*>.*</soundskin>|<soundskin default=\"true\">${skin_id}</soundskin>|" \
-      "${KODI_HOME}/userdata/guisettings.xml" || true
+    # shellcheck source=/dev/null
+    source /usr/local/share/smarttv/kodi_install_addon.sh
+    kodi_set_skin_in_guisettings "${skin_id}" "${KODI_HOME}/userdata/guisettings.xml"
   fi
   chown -R "${TARGET_USER}:${TARGET_USER}" "${KODI_HOME}"
   log "Applied Kodi userdata (skin=${skin_id})"
+}
+
+guisettings_skin() {
+  local file="${KODI_HOME}/userdata/guisettings.xml"
+  [[ -f "${file}" ]] || return 0
+  if grep -q '<skin>' "${file}" 2>/dev/null; then
+    sed -n 's|.*<skin>\([^<]*\)</skin>.*|\1|p' "${file}" | head -n1
+    return 0
+  fi
+  sed -n 's|.*<setting id="lookandfeel.skin"[^>]*>\([^<]*\)</setting>.*|\1|p' "${file}" | head -n1
 }
 
 AZ2_DEPS=(
@@ -124,11 +176,10 @@ main() {
     ensure_addon "${dep}" || log "WARNING: optional dep missing: ${dep}"
   done
 
-  SKIN="skin.arctic.zephyr.2"
-  if ! ensure_addon "${SKIN}"; then
-    log "AZ2 missing; trying GitHub clone"
-    install_from_github "https://github.com/jurialmunkey/skin.arctic.zephyr.2.git" "${SKIN}" \
-      || SKIN="skin.estuary"
+  SKIN="${AZ2_SKIN_ID}"
+  if ! ensure_az2_skin; then
+    log "AZ2 install failed; falling back to Estuary"
+    SKIN="skin.estuary"
   fi
 
   for dep in "${YT_DEPS[@]}"; do
@@ -155,7 +206,7 @@ main() {
   chown -R "${TARGET_USER}:${TARGET_USER}" "${KODI_HOME}"
 
   local ok=1
-  for id in plugin.program.smarttvstore plugin.video.youtube "${SKIN}"; do
+  for id in plugin.program.smarttvstore plugin.video.youtube; do
     if [[ ! -f "${KODI_SYS_ADDONS}/${id}/addon.xml" ]] \
       && [[ ! -f "${KODI_USER_ADDONS}/${id}/addon.xml" ]]; then
       log "MISSING after bootstrap: ${id}"
@@ -165,7 +216,23 @@ main() {
     fi
   done
 
-  if [[ "${ok}" -eq 1 ]]; then
+  if [[ "${SKIN}" == "${AZ2_SKIN_ID}" ]]; then
+    if [[ ! -f "${KODI_SYS_ADDONS}/${SKIN}/addon.xml" ]] \
+      && [[ ! -f "${KODI_USER_ADDONS}/${SKIN}/addon.xml" ]]; then
+      log "MISSING after bootstrap: ${SKIN}"
+      ok=0
+    else
+      log "OK: ${SKIN} (${AZ2_SKIN_TAG})"
+    fi
+    local active_skin
+    active_skin="$(guisettings_skin || true)"
+    if [[ "${active_skin}" == "skin.estuary" ]]; then
+      log "WARNING: guisettings still set to Estuary after apply"
+      ok=0
+    fi
+  fi
+
+  if [[ "${ok}" -eq 1 ]] && [[ "${SKIN}" != "skin.estuary" ]]; then
     touch "${STATE}"
     log "=== Kodi bootstrap complete ==="
   else

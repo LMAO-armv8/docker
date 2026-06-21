@@ -39,7 +39,7 @@ is built to be honest about what that hardware can and can't do:
 | Boot experience | Plymouth animated splash, no kernel log spam |
 | LAN | Onboard RJ45 (`eth0`) DHCP; fallback IP `192.168.1.50` |
 | Swap | 4GB swap created on first boot (needs 8GB+ SD, 16GB recommended) |
-| SSH | `pi` / `raspberry` (change immediately) |
+| SSH | `pi` / `raspberry` (change immediately); `ssh pi@smarttv-retropi.local` or router DHCP IP |
 
 ## How it works
 
@@ -198,10 +198,19 @@ ALLOW_UNSUPPORTED_HOST=1 ./scripts/build-server.sh
 
 ## Troubleshooting
 
+- **Default Estuary skin instead of Arctic Zephyr 2:** flash the latest image
+  (build-20+). AZ2 is pinned to `v0.9.60-alpha1` for Kodi 18. Over SSH:
+  `grep lookandfeel.skin ~/.kodi/userdata/guisettings.xml` should show
+  `skin.arctic.zephyr.2`. Check `/var/log/smarttv-kodi-bootstrap.log` and
+  `grep -i skin ~/.kodi/temp/kodi.log`.
 - **YouTube won't play:** may need Google API keys in add-on settings; check
-  `/var/log/kodi-addon-check.log`.
+  `/var/log/smarttv-kodi-bootstrap.log`.
 - **No network:** run `smarttv-network-status`; ensure RJ45 cable linked.
 - **Add-on dependency errors:** `smarttv-install-addon <id>` over SSH.
+- **EmulationStation won't start:** image installs `libvlc5` at build time;
+  over SSH run `ldd /opt/retropie/supplementary/emulationstation/emulationstation`.
+- **RetroArch missing menus:** build bundles minimal assets from
+  `files.retropie.org.uk` with TLS fallback.
 - **Boot shows text:** remove `/boot/debug-boot` if present; Plymouth may
   have failed — check `journalctl -b`.
 - **Build failures:** see existing pi-gen / RetroPie QEMU build notes below.

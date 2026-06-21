@@ -9,6 +9,8 @@ source "${BUILDER}/retropie_common.sh"
 
 retropie_prepare_setup
 
+apt-get install -y --no-install-recommends libvlc5
+
 retropie_install_module emulationstation
 retropie_install_runcommand
 
