@@ -3,9 +3,29 @@
 # with dependency recursion. Sourced by install_kodi.sh and smarttv-install-addon.
 
 KODI_ADDON_DIR="${KODI_ADDON_DIR:-/usr/share/kodi/addons}"
+KODI_USER_ADDON_DIR="${KODI_USER_ADDON_DIR:-}"
+KODI_SAVE_PACKAGES_DIR="${KODI_SAVE_PACKAGES_DIR:-}"
 LEIA_MIRROR="${LEIA_MIRROR:-http://mirrors.kodi.tv/addons/leia}"
 KODI_INSTALLED_MARKERS="${KODI_INSTALLED_MARKERS:-/tmp/kodi-addon-install-markers}"
 mkdir -p "${KODI_INSTALLED_MARKERS}" "${KODI_ADDON_DIR}"
+
+kodi_sync_to_user() {
+  local addon_id="$1"
+  [[ -n "${KODI_USER_ADDON_DIR}" ]] || return 0
+  [[ -d "${KODI_ADDON_DIR}/${addon_id}" ]] || return 0
+  mkdir -p "${KODI_USER_ADDON_DIR}"
+  rm -rf "${KODI_USER_ADDON_DIR}/${addon_id}"
+  cp -a "${KODI_ADDON_DIR}/${addon_id}" "${KODI_USER_ADDON_DIR}/${addon_id}"
+}
+
+kodi_save_package_zip() {
+  local addon_id="$1"
+  local zip_path="$2"
+  [[ -n "${KODI_SAVE_PACKAGES_DIR}" ]] || return 0
+  [[ -f "${zip_path}" ]] || return 0
+  mkdir -p "${KODI_SAVE_PACKAGES_DIR}"
+  cp -f "${zip_path}" "${KODI_SAVE_PACKAGES_DIR}/$(basename "${zip_path}")"
+}
 
 # mirrors.kodi.tv redirects HTTP→HTTPS; pi-gen Buster chroots often lack a CA chain
 # that validates the mirror cert. Try strict TLS first, then -k (build-time only).
@@ -39,20 +59,40 @@ kodi_install_addon() {
 
   local index_url="${LEIA_MIRROR}/${addon_id}/"
   local zip_name=""
+  local zip_source=""
   local addon_pattern
   addon_pattern=$(echo "${addon_id}" | sed 's/\./\\./g')
 
   if [ -n "${pinned_zip}" ]; then
     zip_name="${pinned_zip}"
+    if [ -f "${KODI_SAVE_PACKAGES_DIR}/${zip_name}" ]; then
+      zip_source="${KODI_SAVE_PACKAGES_DIR}/${zip_name}"
+    else
+      zip_source="${index_url}${zip_name}"
+    fi
   else
-    zip_name=$(kodi_mirror_index "${index_url}" \
-      | grep -oE "${addon_pattern}-[0-9][^\"<>]*\\.zip" \
-      | grep -viE '\+matrix|\+nexus|\+omega|\+dharma' \
-      | sort -V | tail -n1 || true)
+    shopt -s nullglob
+    local local_zips=()
+    if [ -n "${KODI_SAVE_PACKAGES_DIR}" ]; then
+      local_zips=("${KODI_SAVE_PACKAGES_DIR}/${addon_id}-"*.zip)
+    fi
+    shopt -u nullglob
+    if [ ${#local_zips[@]} -gt 0 ]; then
+      zip_source="${local_zips[$((${#local_zips[@]} - 1))]}"
+      zip_name="$(basename "${zip_source}")"
+    else
+      zip_name=$(kodi_mirror_index "${index_url}" \
+        | grep -oE "${addon_pattern}-[0-9][^\"<>]*\\.zip" \
+        | grep -viE '\+matrix|\+nexus|\+omega|\+dharma' \
+        | sort -V | tail -n1 || true)
+      if [ -n "${zip_name}" ]; then
+        zip_source="${index_url}${zip_name}"
+      fi
+    fi
   fi
 
-  if [ -z "${zip_name}" ]; then
-    echo "WARNING: no Leia zip found for ${addon_id} at ${index_url}" >&2
+  if [ -z "${zip_name}" ] || [ -z "${zip_source}" ]; then
+    echo "WARNING: no Leia zip found for ${addon_id}" >&2
     return 1
   fi
 
@@ -61,13 +101,18 @@ kodi_install_addon() {
   rm -rf "${tmp_extract}"
   mkdir -p "${tmp_extract}"
 
-  if ! kodi_curl -o "${tmp_zip}" "${index_url}${zip_name}"; then
-    echo "WARNING: failed to download ${index_url}${zip_name}" >&2
-    rm -rf "${tmp_extract}" "${tmp_zip}"
-    return 1
+  if [[ "${zip_source}" == http* ]]; then
+    if ! kodi_curl -o "${tmp_zip}" "${zip_source}"; then
+      echo "WARNING: failed to download ${zip_source}" >&2
+      rm -rf "${tmp_extract}" "${tmp_zip}"
+      return 1
+    fi
+  else
+    cp -f "${zip_source}" "${tmp_zip}"
   fi
 
   unzip -q -o "${tmp_zip}" -d "${tmp_extract}"
+  kodi_save_package_zip "${addon_id}" "${tmp_zip}"
   rm -f "${tmp_zip}"
 
   local src_dir="${tmp_extract}/${addon_id}"
@@ -84,6 +129,7 @@ kodi_install_addon() {
   rm -rf "${KODI_ADDON_DIR}/${addon_id}"
   cp -a "${src_dir}" "${KODI_ADDON_DIR}/${addon_id}"
   touch "${KODI_INSTALLED_MARKERS}/${addon_id}"
+  kodi_sync_to_user "${addon_id}"
 
   local dep_ids
   dep_ids=$(grep -oE 'addon="[^"]+"' "${KODI_ADDON_DIR}/${addon_id}/addon.xml" \
@@ -132,6 +178,7 @@ kodi_install_youtube_github() {
     return 1
   fi
   touch "${KODI_INSTALLED_MARKERS}/plugin.video.youtube"
+  kodi_sync_to_user "plugin.video.youtube"
   return 0
 }
 
@@ -142,4 +189,5 @@ kodi_clone_skin_github() {
   rm -rf "${dir}"
   git clone --depth 1 "${repo}" "${dir}" || return 1
   touch "${KODI_INSTALLED_MARKERS}/${addon_id}"
+  kodi_sync_to_user "${addon_id}"
 }

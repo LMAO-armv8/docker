@@ -81,6 +81,7 @@ TTYVHangup=yes
 TTYVTDisallocate=yes
 StandardInput=tty
 StandardOutput=journal
+ExecStartPre=/usr/local/bin/smarttv-kodi-bootstrap.sh
 ExecStartPre=/usr/local/bin/smarttv-boot-splash.sh
 ExecStart=/usr/local/bin/kodi-standalone-wrapper.sh
 Restart=on-failure
