@@ -22,7 +22,6 @@ env:
   IMG_NAME: smarttv-retro-pi1
   PI_GEN_BRANCH: buster          # last pi-gen branch with first-class ARMv6 (Pi 1) support
   PI_GEN_RELEASE: buster         # Debian/Raspberry Pi OS release matching that branch
-  PI_GEN_CACHE_DIR: /home/github-runner/.cache/smarttv-pi-gen
 
 # A full desktop-less pi-gen build comfortably fits the free-tier 6 hour job
 # limit, but it needs more scratch disk than the default runner ships with,
@@ -34,7 +33,7 @@ env:
 # ubuntu-22.04 (kernel 6.8) where NBD + qcow2 backing chains still work.
 jobs:
   build:
-    runs-on: [self-hosted, Linux, X64, pi-gen]
+    runs-on: ubuntu-22.04
     timeout-minutes: 330
     permissions:
       contents: write
@@ -42,8 +41,19 @@ jobs:
       - name: Checkout this repository
         uses: actions/checkout@v4
 
-      - name: Clear pi-gen cache (optional)
-        if: github.event_name == 'workflow_dispatch' && inputs.clean_cache
+      - name: Free up disk space on the runner
+        run: |
+          echo "Disk space before cleanup:"
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache \
+            /usr/local/.ghcup "$AGENT_TOOLSDIRECTORY" /usr/lib/jvm /opt/az 2>/dev/null || true
+          echo "Disk space after cleanup:"
+          df -h /
+
+      - name: Clear pi-gen cache (self-hosted only)
+        if: runner.environment == 'self-hosted' && github.event_name == 'workflow_dispatch' && inputs.clean_cache
+        env:
+          PI_GEN_CACHE_DIR: /home/github-runner/.cache/smarttv-pi-gen
         run: |
           chmod +x scripts/pi-gen-cache.sh
           scripts/pi-gen-cache.sh clean
@@ -63,8 +73,14 @@ jobs:
 
       - name: Clone pi-gen (buster branch, ARMv6/armhf compatible)
         run: |
-          chmod +x scripts/pi-gen-cache.sh
-          scripts/pi-gen-cache.sh clone-pigen
+          if [ "${{ runner.environment }}" = "self-hosted" ]; then
+            chmod +x scripts/pi-gen-cache.sh
+            PI_GEN_CACHE_DIR=/home/github-runner/.cache/smarttv-pi-gen \
+              scripts/pi-gen-cache.sh clone-pigen
+          else
+            git clone --depth 1 --branch "${PI_GEN_BRANCH}" \
+              https://github.com/RPi-Distro/pi-gen.git pi-gen
+          fi
 
       - name: Patch pi-gen for GitHub Actions compatibility
         run: |
@@ -268,6 +284,9 @@ jobs:
           EOF
 
       - name: Restore pi-gen work cache / skip base stages
+        if: runner.environment == 'self-hosted'
+        env:
+          PI_GEN_CACHE_DIR: /home/github-runner/.cache/smarttv-pi-gen
         run: scripts/pi-gen-cache.sh prepare
 
       - name: Run pi-gen build
@@ -280,7 +299,9 @@ jobs:
           sudo ./build.sh
 
       - name: Save pi-gen work cache
-        if: success()
+        if: runner.environment == 'self-hosted' && success()
+        env:
+          PI_GEN_CACHE_DIR: /home/github-runner/.cache/smarttv-pi-gen
         run: scripts/pi-gen-cache.sh save
 
       - name: Locate build output

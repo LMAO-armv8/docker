@@ -112,18 +112,17 @@ addons/           plugin.program.smarttvstore/
 
 ## Building the image
 
-### GitHub Actions (self-hosted runner)
+### GitHub Actions (GitHub-hosted runner)
 
 Push to `main` or `raspi-smarttv-retro`, or run the workflow manually from the
 **Actions** tab. Enable **Publish a GitHub Release** on manual runs to upload
-`smarttv-retro-pi1.img.gz` to Releases.
+`smarttv-retro-pi1.img.gz` to Releases. The workflow uses **`ubuntu-22.04`**
+GitHub-hosted runners (not self-hosted).
 
-**Build cache (self-hosted):** qcow2 stage images are stored under
-`/home/github-runner/.cache/smarttv-pi-gen/`. Restarts and re-runs skip
-**stage0–stage2** (Raspberry Pi OS Lite base) when that cache is valid. When
-only `scripts/`, `config/`, or `pi-gen-stage/` change, the base is reused and
-only **stage5-smarttv** rebuilds. Use workflow dispatch **Clear pi-gen cache**
-for a full from-scratch build.
+**Optional self-hosted runner:** change `runs-on` in
+[`.github/workflows/build.yml`](.github/workflows/build.yml) to
+`[self-hosted, Linux, X64, pi-gen]` to build on your own server with qcow2
+caching under `/home/github-runner/.cache/smarttv-pi-gen/`.
 
 ### Cloud server / VM (same pipeline as Actions)
 
@@ -149,7 +148,13 @@ chmod +x scripts/build-server.sh
 # Build + publish to GitHub Releases (same as Actions release step)
 PUBLISH_RELEASE=1 ./scripts/build-server.sh
 
-# Faster rebuild on the same server (reuse pi-gen checkout)
+# Faster rebuild on the same server (qcow2 cache + skip base stages)
+./scripts/build-server.sh
+
+# Full rebuild ignoring cache
+CLEAN_PI_GEN_CACHE=1 ./scripts/build-server.sh
+
+# Reuse pi-gen git checkout only (no qcow2 cache benefit)
 KEEP_PI_GEN=1 SKIP_APT_HOST=1 ./scripts/build-server.sh
 ```
 
@@ -161,6 +166,9 @@ KEEP_PI_GEN=1 SKIP_APT_HOST=1 ./scripts/build-server.sh
 | `GITHUB_REPO` | from `git remote` | e.g. `owner/raspi-smarttv-retro` |
 | `BUILD_TAG` | `build-server-YYYYMMDD-HHMMSS` | GitHub Release tag name |
 | `KEEP_PI_GEN` | `0` | Reuse existing `pi-gen/` directory |
+| `PI_GEN_CACHE` | `1` | Persist qcow2 work dir; skip stage0–2 when valid |
+| `CLEAN_PI_GEN_CACHE` | `0` | Set to `1` to wipe cache before building |
+| `PI_GEN_CACHE_DIR` | `/var/cache/smarttv-pi-gen` | Cache location (needs ~15–25GB free) |
 | `SKIP_APT_HOST` | `0` | Skip host package install on rebuild |
 
 **Note:** Use Ubuntu **22.04** — pi-gen qcow2 + NBD is unreliable on 24.04+.
